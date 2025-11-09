@@ -16,6 +16,7 @@ import {
     LoadingSpinner,
     CopyIcon,
     CheckIcon,
+    ResetIcon,
 } from './components/icons';
 import Chatbot from './components/Chatbot';
 
@@ -102,6 +103,15 @@ const App: React.FC = () => {
         }
     };
 
+    const handleReset = () => {
+        setTopic('');
+        setIsLoading(false);
+        setError(null);
+        setGeneratedContent(null);
+        setIdeas([]);
+        setSchedule([]);
+    };
+
 
     return (
         <div className="bg-slate-900 text-white min-h-screen font-sans">
@@ -141,6 +151,15 @@ const App: React.FC = () => {
                                     <span className="ml-2">Generate Content</span>
                                 </>
                             )}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleReset}
+                            className="bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-slate-300 hover:text-white p-3 rounded-md flex items-center justify-center transition-colors"
+                            disabled={isLoading || (!hasResults && !topic.trim())}
+                            aria-label="Reset form and results"
+                        >
+                            <ResetIcon />
                         </button>
                     </div>
                     {error && <p className="text-red-400 mt-4 text-center">{error}</p>}
