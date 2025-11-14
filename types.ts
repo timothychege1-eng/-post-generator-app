@@ -44,11 +44,11 @@ export interface GeneratedPosts {
   linkedinPost: LinkedInPost;
   xPost: XPost;
   imagePrompt: string;
-  blogArticle: BlogArticle;
-  linkedinPoll: LinkedInPoll;
-  carouselPresentation: CarouselPresentation;
-  researchReport: ResearchReport;
-  podcastScript: PodcastScript;
+  blogArticle?: BlogArticle;
+  linkedinPoll?: LinkedInPoll;
+  carouselPresentation?: CarouselPresentation;
+  researchReport?: ResearchReport;
+  podcastScript?: PodcastScript;
 }
 
 export interface ScheduleItem {
