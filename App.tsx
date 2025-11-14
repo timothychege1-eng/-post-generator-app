@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-    generateCorePostsAndImage,
+    generateCorePosts,
+    generateImages,
     generatePostIdeas,
     generateWeeklySchedule,
-    regenerateImages,
     generatePodcastAudio,
     generateMeme,
     generateBlogArticle,
@@ -157,7 +157,7 @@ const App: React.FC = () => {
 
     const hasResults = generatedContent || ideas.length > 0 || schedule.length > 0;
 
-    const formatPostContent = (posts: GeneratedPosts) => {
+    const formatPostContent = (posts: GeneratedPosts | Pick<GeneratedPosts, 'linkedinPost' | 'xPost' | 'imagePrompt'>) => {
         const convertToHtml = (text: string | undefined) => {
             if (!text) return '';
             const lines = text.split('\n');
@@ -190,14 +190,24 @@ const App: React.FC = () => {
             return html;
         };
 
-        return {
+        const formattedPosts: GeneratedPosts = {
+            ...({} as GeneratedPosts), // Base empty object
             ...posts,
             linkedinPost: { ...posts.linkedinPost, body: convertToHtml(posts.linkedinPost.body) },
             xPost: { ...posts.xPost, body: convertToHtml(posts.xPost.body) },
-            ...(posts.blogArticle && { blogArticle: { ...posts.blogArticle, body: convertToHtml(posts.blogArticle.body) } }),
-            ...(posts.researchReport && { researchReport: { ...posts.researchReport, body: convertToHtml(posts.researchReport.body) } }),
-            ...(posts.podcastScript && { podcastScript: { ...posts.podcastScript, script: convertToHtml(posts.podcastScript.script) } }),
         };
+        
+        if ('blogArticle' in posts && posts.blogArticle) {
+            formattedPosts.blogArticle = { ...posts.blogArticle, body: convertToHtml(posts.blogArticle.body) };
+        }
+        if ('researchReport' in posts && posts.researchReport) {
+            formattedPosts.researchReport = { ...posts.researchReport, body: convertToHtml(posts.researchReport.body) };
+        }
+        if ('podcastScript' in posts && posts.podcastScript) {
+            formattedPosts.podcastScript = { ...posts.podcastScript, script: convertToHtml(posts.podcastScript.script) };
+        }
+    
+        return formattedPosts;
     };
 
     const handleGeneratePrimaryContent = async (e: React.FormEvent) => {
@@ -211,10 +221,10 @@ const App: React.FC = () => {
         setIsLoading(true);
         setActiveTopic(currentTopic);
         try {
-            const postsResult = await generateCorePostsAndImage(currentTopic, artisticStyle, colorPalette, composition, mood, aspectRatio);
+            const postsResult = await generateCorePosts(currentTopic);
             setGeneratedContent({ 
-                posts: formatPostContent(postsResult.posts),
-                images: postsResult.images
+                posts: formatPostContent(postsResult),
+                images: [] // Start with no images
             });
         } catch (err) {
             console.error("Generation failed:", err);
@@ -314,10 +324,10 @@ const App: React.FC = () => {
         setActiveTopic(selectedTopic);
 
         try {
-            const postsResult = await generateCorePostsAndImage(selectedTopic, artisticStyle, colorPalette, composition, mood, aspectRatio);
+            const postsResult = await generateCorePosts(selectedTopic);
              setGeneratedContent({ 
-                posts: formatPostContent(postsResult.posts),
-                images: postsResult.images
+                posts: formatPostContent(postsResult),
+                images: [] // Start with no images
             });
         } catch (err) {
             console.error("Generation failed for selected topic:", err);
@@ -326,70 +336,34 @@ const App: React.FC = () => {
             setIsLoading(false);
         }
     };
-
-    const constructEnhancedPrompt = (basePrompt: string) => {
-        let enhancedPrompt = basePrompt;
-        if (artisticStyle !== 'Default') {
-            enhancedPrompt += `, in a ${artisticStyle.toLowerCase()} style`;
-        }
-        if (colorPalette !== 'Default') {
-            enhancedPrompt += `, with a ${colorPalette.toLowerCase().replace(' ', '-')} color palette`;
-        }
-        if (composition !== 'Default') {
-            enhancedPrompt += `, with ${composition.toLowerCase()} composition`;
-        }
-        if (mood !== 'Default') {
-            enhancedPrompt += `, evoking a ${mood.toLowerCase()} mood`;
-        }
-        return enhancedPrompt;
-    };
     
-    const handleRegenerateImages = async () => {
+    const handleGenerateImages = async () => {
         if (!generatedContent || isRegeneratingImage) return;
 
-        setIsRegeneratingImage(true);
-        setError(null);
-        try {
-            const finalPrompt = constructEnhancedPrompt(generatedContent.posts.imagePrompt);
-            const newImages = await regenerateImages(finalPrompt, aspectRatio);
-            setGeneratedContent(prev => prev ? { ...prev, images: newImages } : null);
-            setSelectedImageIndex(0);
-        } catch (err) {
-            console.error("Image regeneration failed:", err);
-            setError(err instanceof Error ? err.message : 'An unexpected error occurred during image regeneration.');
-        } finally {
-            setIsRegeneratingImage(false);
-        }
-    };
-
-    const handleUpdatePromptAndRegenerate = async () => {
-        if (!generatedContent || isRegeneratingImage || !editedPrompt.trim()) {
-            if (!editedPrompt.trim()) setError("Prompt cannot be empty.");
+        const promptToUse = isEditingPrompt && editedPrompt.trim() ? editedPrompt.trim() : generatedContent.posts.imagePrompt;
+        if (!promptToUse) {
+            setError("Image prompt is missing.");
             return;
         }
 
         setIsRegeneratingImage(true);
         setError(null);
         try {
-            const finalPrompt = constructEnhancedPrompt(editedPrompt);
-            const newImages = await regenerateImages(finalPrompt, aspectRatio);
+            const newImages = await generateImages(promptToUse, artisticStyle, colorPalette, composition, mood, aspectRatio);
+            
             setGeneratedContent(prev => {
                 if (!prev) return null;
+                const updatedPosts = isEditingPrompt ? { ...prev.posts, imagePrompt: promptToUse } : prev.posts;
                 return {
-                    ...prev,
+                    posts: updatedPosts,
                     images: newImages,
-                    posts: {
-                        ...prev.posts,
-                        imagePrompt: editedPrompt,
-                    }
                 };
             });
             setSelectedImageIndex(0);
-            setIsEditingPrompt(false);
-        } catch (err)
- {
-            console.error("Image regeneration with new prompt failed:", err);
-            setError(err instanceof Error ? err.message : 'An unexpected error occurred during image regeneration.');
+            if (isEditingPrompt) setIsEditingPrompt(false);
+        } catch (err) {
+            console.error("Image generation failed:", err);
+            setError(err instanceof Error ? err.message : 'An unexpected error occurred during image generation.');
         } finally {
             setIsRegeneratingImage(false);
         }
@@ -1072,31 +1046,39 @@ const App: React.FC = () => {
                         </div>
 
                         {/* Side Column for Image, Ideas, Schedule */}
-                        <div className="space-y-8">
+                        <div className="lg:sticky top-8 space-y-8 self-start">
                            {generatedContent && (
                             <>
                              {/* Image Generation */}
-                            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg p-6 sticky top-8">
+                            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg p-6">
                                 <h2 className="text-2xl font-bold mb-4">Generated Image</h2>
                                 <div className="aspect-video bg-slate-700/50 rounded-lg mb-4 flex items-center justify-center border border-slate-700 overflow-hidden">
-                                     {isRegeneratingImage ? (
+                                    {isRegeneratingImage ? (
                                         <div className="flex flex-col items-center justify-center text-slate-400">
                                             <LoadingSpinner/>
                                             <p className="mt-2 text-sm">Generating new images...</p>
                                         </div>
-                                     ) : generatedContent.images.length > 0 ? (
+                                    ) : generatedContent.images.length > 0 ? (
                                         <img
                                             src={`data:image/jpeg;base64,${generatedContent.images[selectedImageIndex]}`}
                                             alt={generatedContent.posts.imagePrompt}
                                             className="w-full h-full object-cover"
                                         />
                                     ) : (
-                                        <div className="flex flex-col items-center justify-center text-slate-400">
+                                        <div className="flex flex-col items-center justify-center text-slate-400 h-full p-4">
                                             <ImagePlaceholderIcon />
-                                            <p className="mt-2 text-sm text-center">Generate content to create an image.</p>
+                                            <p className="mt-2 text-sm text-center mb-4">Content is ready. Generate visuals to accompany your posts.</p>
+                                            <button
+                                                onClick={handleGenerateImages}
+                                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md flex items-center justify-center transition-colors"
+                                                disabled={isRegeneratingImage}
+                                            >
+                                                <SparklesIcon /> <span className="ml-2">Generate Images</span>
+                                            </button>
                                         </div>
                                     )}
                                 </div>
+                                
                                 {generatedContent.images.length > 1 && (
                                     <div className="flex justify-center gap-2 mb-4">
                                         {generatedContent.images.map((_, index) => (
@@ -1141,9 +1123,10 @@ const App: React.FC = () => {
                                         </select>
                                     </div>
                                 </div>
+                                {generatedContent.images.length > 0 && (
                                 <div className="space-y-2">
                                     <button
-                                        onClick={handleRegenerateImages}
+                                        onClick={handleGenerateImages}
                                         className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white font-bold py-2 px-4 rounded-md flex items-center justify-center transition-colors"
                                         disabled={isRegeneratingImage || !generatedContent?.posts.imagePrompt}
                                     >
@@ -1159,7 +1142,7 @@ const App: React.FC = () => {
                                                 rows={3}
                                             />
                                             <div className="flex gap-2">
-                                                <button onClick={handleUpdatePromptAndRegenerate} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-3 rounded-md text-sm">Save & Regenerate</button>
+                                                <button onClick={handleGenerateImages} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-3 rounded-md text-sm">Save & Regenerate</button>
                                                 <button onClick={() => setIsEditingPrompt(false)} className="bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-3 rounded-md text-sm">Cancel</button>
                                             </div>
                                         </div>
@@ -1176,6 +1159,7 @@ const App: React.FC = () => {
                                         </button>
                                     )}
                                 </div>
+                                )}
                             </div>
                             
                              {/* Meme Section */}

@@ -178,21 +178,10 @@ async function generateContentWithSchema(prompt: string, schema: any) {
     }
 }
 
-export async function generateCorePostsAndImage(
+export async function generateCorePosts(
     topic: string,
-    artisticStyle: string,
-    colorPalette: string,
-    composition: string,
-    mood: string,
-    aspectRatio: string
-): Promise<{ posts: Pick<GeneratedPosts, 'linkedinPost' | 'xPost' | 'imagePrompt'>; images: string[]; }> {
+): Promise<Pick<GeneratedPosts, 'linkedinPost' | 'xPost' | 'imagePrompt'>> {
     console.log("Generating core content (LinkedIn, X, Image Prompt)...");
-
-    let imagePromptInstructions = "The image prompt must be detailed and descriptive, suitable for an AI image generator, and should be symbolic, optimistic, and represent the topic in a professional context.";
-    if (artisticStyle !== 'Default') imagePromptInstructions += ` The artistic style should be ${artisticStyle}.`;
-    if (colorPalette !== 'Default') imagePromptInstructions += ` The color palette should be ${colorPalette}.`;
-    if (composition !== 'Default') imagePromptInstructions += ` The composition should be ${composition}.`;
-    if (mood !== 'Default') imagePromptInstructions += ` The mood should be ${mood}.`;
 
     const prompt = `
         You are a world-class content strategist for professionals in Kenya.
@@ -203,19 +192,39 @@ export async function generateCorePostsAndImage(
         You must generate ALL of the following:
         1. A LinkedIn post.
         2. An X (Twitter) post.
-        3. A detailed image prompt based on the topic. ${imagePromptInstructions}.
+        3. A detailed image prompt. The image prompt must be descriptive, suitable for an AI image generator, and should be symbolic, optimistic, and represent the topic in a professional context.
 
         Return a single, complete JSON object that strictly matches the provided schema.
     `;
 
-    const postData: Pick<GeneratedPosts, 'linkedinPost' | 'xPost' | 'imagePrompt'> = await generateContentWithSchema(prompt, corePostsSchema);
+    return await generateContentWithSchema(prompt, corePostsSchema);
+}
 
-    console.log("Generating post image with prompt:", postData.imagePrompt);
+export async function generateImages(
+    imagePrompt: string,
+    artisticStyle: string,
+    colorPalette: string,
+    composition: string,
+    mood: string,
+    aspectRatio: string
+): Promise<string[]> {
+    console.log("Generating images with prompt:", imagePrompt);
+
+    if (!imagePrompt) {
+        throw new Error("An image prompt is required to generate images.");
+    }
+
+    let enhancedPrompt = imagePrompt;
+    if (artisticStyle !== 'Default') enhancedPrompt += `, in a ${artisticStyle.toLowerCase()} style`;
+    if (colorPalette !== 'Default') enhancedPrompt += `, with a ${colorPalette.toLowerCase().replace(' ', '-')} color palette`;
+    if (composition !== 'Default') enhancedPrompt += `, with ${composition.toLowerCase()} composition`;
+    if (mood !== 'Default') enhancedPrompt += `, evoking a ${mood.toLowerCase()} mood`;
+
     const imageResponse = await ai.models.generateImages({
         model: imageModel,
-        prompt: postData.imagePrompt,
+        prompt: enhancedPrompt,
         config: {
-            numberOfImages: 3,
+            numberOfImages: 1,
             aspectRatio: aspectRatio,
             outputMimeType: 'image/jpeg'
         },
@@ -224,9 +233,9 @@ export async function generateCorePostsAndImage(
     if (!imageResponse.generatedImages || imageResponse.generatedImages.length === 0) {
         throw new Error("Image generation failed, no images returned.");
     }
+    
     const base64Images = imageResponse.generatedImages.map(img => img.image.imageBytes);
-
-    return { posts: postData, images: base64Images };
+    return base64Images;
 }
 
 
@@ -263,32 +272,6 @@ export async function generatePodcastScript(topic: string): Promise<PodcastScrip
     const prompt = `You are a podcast writer. Generate a fun, engaging, and educational 5-7 minute podcast script (approx. 750-1050 words) on the topic: "${topic}". The script must be a conversation between two speakers, clearly marked with 'Host:' and 'Expert:' before their respective lines. Return a single JSON object matching the schema.`;
     const result = await generateContentWithSchema(prompt, podcastScriptSchema);
     return result.podcastScript;
-}
-
-
-export async function regenerateImages(imagePrompt: string, aspectRatio: string): Promise<string[]> {
-    console.log("Regenerating post images with prompt:", imagePrompt);
-    
-    if (!imagePrompt) {
-        throw new Error("An image prompt is required to regenerate images.");
-    }
-
-    const imageResponse = await ai.models.generateImages({
-        model: imageModel,
-        prompt: imagePrompt,
-        config: {
-            numberOfImages: 3,
-            aspectRatio: aspectRatio,
-            outputMimeType: 'image/jpeg'
-        },
-    });
-
-    if (!imageResponse.generatedImages || imageResponse.generatedImages.length === 0) {
-        throw new Error("Image regeneration failed, no images returned.");
-    }
-    
-    const base64Images = imageResponse.generatedImages.map(img => img.image.imageBytes);
-    return base64Images;
 }
 
 export async function generatePostIdeas(topic: string): Promise<string[]> {
