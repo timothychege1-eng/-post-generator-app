@@ -1,22 +1,22 @@
+
+
 import React, { useState, useEffect, useMemo } from 'react';
 import {
     generateCorePosts,
     generateImages,
-    generatePostIdeas,
-    generateWeeklySchedule,
     generatePodcastAudio,
-    generateMeme,
+    generatePodcastScript,
     generateBlogArticle,
     generateLinkedInPoll,
     generateCarousel,
-    generateReport,
-    generatePodcastScript,
+    generateResearchReport,
+    generateTopicSuggestions,
 } from './services/geminiService';
-import { GeneratedPosts, ScheduleItem, SavedContent, ScheduledPost, LinkedInPoll, CarouselPresentation, PodcastScript } from './types';
+import { GeneratedPosts, SavedContent, ScheduledPost, TopicSuggestion } from './types';
 import {
-    SparklesIcon, LinkedInIcon, XIcon, CalendarIcon, LightbulbIcon, ImagePlaceholderIcon, LoadingSpinner,
+    SparklesIcon, LinkedInIcon, XIcon, ImagePlaceholderIcon, LoadingSpinner,
     CopyIcon, CheckIcon, ResetIcon, RegenerateIcon, EditIcon, SaveIcon, BookOpenIcon, ClockIcon,
-    DocumentTextIcon, ChartBarIcon, CollectionIcon, PlusCircleIcon, TrashIcon, MicrophoneIcon, DownloadIcon, MemeIcon,
+    PlusCircleIcon, TrashIcon, MicrophoneIcon, DownloadIcon, DocumentTextIcon, ChartBarIcon, CollectionIcon,
 } from './components/icons';
 import Chatbot from './components/Chatbot';
 import Modal from './components/Modal';
@@ -43,36 +43,7 @@ const CopyButton: React.FC<{ text: string }> = ({ text }) => {
     );
 };
 
-const CopyImageButton: React.FC<{ base64Data: string }> = ({ base64Data }) => {
-    const [copied, setCopied] = useState(false);
-    const handleCopy = async () => {
-        if (!base64Data) return;
-        try {
-            const blob = await (await fetch(`data:image/jpeg;base64,${base64Data}`)).blob();
-            await navigator.clipboard.write([
-                new ClipboardItem({ [blob.type]: blob })
-            ]);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-        } catch (err) {
-            console.error('Failed to copy image: ', err);
-            alert('Failed to copy image. Your browser might not support this feature.');
-        }
-    };
-
-    return (
-        <button
-            onClick={handleCopy}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-md transition-colors absolute top-2 right-2"
-            aria-label="Copy image to clipboard"
-        >
-            {copied ? <CheckIcon /> : <CopyIcon />}
-        </button>
-    );
-};
-
-
-type EditContentType = 'linkedin' | 'x' | 'blog' | 'report' | 'poll' | 'carousel' | 'podcast';
+type EditContentType = 'linkedin' | 'x' | 'podcast' | 'blog' | 'poll' | 'carousel';
 
 interface EditingState {
     type: EditContentType;
@@ -89,24 +60,19 @@ const App: React.FC = () => {
         posts: GeneratedPosts;
         images: string[];
     } | null>(null);
-    const [ideas, setIdeas] = useState<string[]>([]);
-    const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
     const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
-    const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
-    const [isGeneratingSchedule, setIsGeneratingSchedule] = useState(false);
     const [isRegeneratingImage, setIsRegeneratingImage] = useState(false);
-    const [isGeneratingMeme, setIsGeneratingMeme] = useState(false);
+    
+    // On-demand generation states
+    const [isGeneratingPodcast, setIsGeneratingPodcast] = useState(false);
     const [isGeneratingBlog, setIsGeneratingBlog] = useState(false);
     const [isGeneratingPoll, setIsGeneratingPoll] = useState(false);
     const [isGeneratingCarousel, setIsGeneratingCarousel] = useState(false);
     const [isGeneratingReport, setIsGeneratingReport] = useState(false);
-    const [isGeneratingPodcast, setIsGeneratingPodcast] = useState(false);
-
 
     const [isEditingPrompt, setIsEditingPrompt] = useState(false);
     const [editedPrompt, setEditedPrompt] = useState('');
-    const [carouselSlideIndex, setCarouselSlideIndex] = useState(0);
 
     const [artisticStyle, setArtisticStyle] = useState('Default');
     const [colorPalette, setColorPalette] = useState('Default');
@@ -114,8 +80,6 @@ const App: React.FC = () => {
     const [mood, setMood] = useState('Default');
     const [aspectRatio, setAspectRatio] = useState('16:9');
     
-    const [meme, setMeme] = useState<{ image: string; caption: string; } | null>(null);
-
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingPost, setEditingPost] = useState<EditingState | null>(null);
 
@@ -129,11 +93,18 @@ const App: React.FC = () => {
     const [scheduleDateTime, setScheduleDateTime] = useState('');
     const [scheduleSuccess, setScheduleSuccess] = useState(false);
 
+    // Topic Suggestions State
+    const [topicSuggestions, setTopicSuggestions] = useState<TopicSuggestion[] | null>(null);
+    const [isSuggesting, setIsSuggesting] = useState(false);
+
+
     // Podcast State
     const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
     const [audioError, setAudioError] = useState<string | null>(null);
 
+    // Carousel state
+    const [currentSlide, setCurrentSlide] = useState(0);
 
     useEffect(() => {
         try {
@@ -155,37 +126,39 @@ const App: React.FC = () => {
         };
     }, []);
 
-    const hasResults = generatedContent || ideas.length > 0 || schedule.length > 0;
+    const hasResults = !!generatedContent;
 
-    const formatPostContent = (posts: GeneratedPosts | Pick<GeneratedPosts, 'linkedinPost' | 'xPost' | 'imagePrompt'>) => {
+    const formatPostContent = (posts: Partial<GeneratedPosts>) => {
         const convertToHtml = (text: string | undefined) => {
             if (!text) return '';
             const lines = text.split('\n');
             let html = '';
-            let inList = false;
+            let inUl = false;
+            let inOl = false;
     
             for (const line of lines) {
                 const trimmedLine = line.trim();
-                if (trimmedLine.startsWith('* ') || trimmedLine.startsWith('- ')) {
-                    if (!inList) {
-                        html += '<ul>';
-                        inList = true;
-                    }
+                const isOlItem = /^\d+\.\s/.test(trimmedLine);
+                const isUlItem = trimmedLine.startsWith('* ') || trimmedLine.startsWith('- ');
+                
+                if (inUl && !isUlItem) { html += '</ul>'; inUl = false; }
+                if (inOl && !isOlItem) { html += '</ol>'; inOl = false; }
+
+                if (isUlItem) {
+                    if (!inUl) { html += '<ul>'; inUl = true; }
                     html += `<li>${trimmedLine.substring(2)}</li>`;
+                } else if (isOlItem) {
+                    if (!inOl) { html += '<ol>'; inOl = true; }
+                    html += `<li>${trimmedLine.replace(/^\d+\.\s/, '')}</li>`;
                 } else {
-                    if (inList) {
-                        html += '</ul>';
-                        inList = false;
-                    }
                     if (trimmedLine) {
                         html += `<p>${trimmedLine}</p>`;
                     }
                 }
             }
     
-            if (inList) {
-                html += '</ul>';
-            }
+            if (inUl) html += '</ul>';
+            if (inOl) html += '</ol>';
             
             return html;
         };
@@ -193,18 +166,18 @@ const App: React.FC = () => {
         const formattedPosts: GeneratedPosts = {
             ...({} as GeneratedPosts), // Base empty object
             ...posts,
-            linkedinPost: { ...posts.linkedinPost, body: convertToHtml(posts.linkedinPost.body) },
-            xPost: { ...posts.xPost, body: convertToHtml(posts.xPost.body) },
         };
         
-        if ('blogArticle' in posts && posts.blogArticle) {
-            formattedPosts.blogArticle = { ...posts.blogArticle, body: convertToHtml(posts.blogArticle.body) };
-        }
-        if ('researchReport' in posts && posts.researchReport) {
-            formattedPosts.researchReport = { ...posts.researchReport, body: convertToHtml(posts.researchReport.body) };
-        }
-        if ('podcastScript' in posts && posts.podcastScript) {
-            formattedPosts.podcastScript = { ...posts.podcastScript, script: convertToHtml(posts.podcastScript.script) };
+        if (posts.linkedinPost) formattedPosts.linkedinPost = { ...posts.linkedinPost, body: convertToHtml(posts.linkedinPost.body) };
+        if (posts.xPost) formattedPosts.xPost = { ...posts.xPost, body: convertToHtml(posts.xPost.body) };
+        if (posts.podcastScript) formattedPosts.podcastScript = { ...posts.podcastScript, script: convertToHtml(posts.podcastScript.script) };
+        if (posts.blogArticle) formattedPosts.blogArticle = { ...posts.blogArticle, body: convertToHtml(posts.blogArticle.body) };
+        if (posts.researchReport) formattedPosts.researchReport = { ...posts.researchReport, report: convertToHtml(posts.researchReport.report) };
+        if (posts.carouselPresentation) {
+            formattedPosts.carouselPresentation = { 
+                ...posts.carouselPresentation, 
+                slides: posts.carouselPresentation.slides.map(slide => ({ ...slide, content: convertToHtml(slide.content) }))
+            };
         }
     
         return formattedPosts;
@@ -234,109 +207,67 @@ const App: React.FC = () => {
         }
     };
     
-    const handleGenerateIdeas = async () => {
-        if (!activeTopic || isGeneratingIdeas) return;
-        setIsGeneratingIdeas(true);
+    const handleSuggestTopics = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const currentTopic = topic.trim();
+        if (!currentTopic) {
+            setError('Please enter a topic to get suggestions.');
+            return;
+        }
+        setIsSuggesting(true);
         setError(null);
+        setTopicSuggestions(null);
+        setGeneratedContent(null);
         try {
-            const ideasResult = await generatePostIdeas(activeTopic);
-            setIdeas(ideasResult);
+            const result = await generateTopicSuggestions(currentTopic);
+            setTopicSuggestions(result);
         } catch (err) {
-            console.error("Failed to generate ideas:", err);
-            setError(err instanceof Error ? err.message : 'Failed to generate ideas.');
+            console.error("Suggestion generation failed:", err);
+            setError(err instanceof Error ? err.message : 'An unexpected error occurred during suggestion generation.');
         } finally {
-            setIsGeneratingIdeas(false);
+            setIsSuggesting(false);
         }
     };
 
-    const handleGenerateSchedule = async () => {
-        if (!activeTopic || isGeneratingSchedule) return;
-        setIsGeneratingSchedule(true);
-        setError(null);
-        try {
-            const scheduleResult = await generateWeeklySchedule(activeTopic);
-            setSchedule(scheduleResult);
-        } catch (err) {
-            console.error("Failed to generate schedule:", err);
-            setError(err instanceof Error ? err.message : 'Failed to generate schedule.');
-        } finally {
-            setIsGeneratingSchedule(false);
-        }
+    const handleSuggestionClick = (suggestionTopic: string) => {
+        setTopic(suggestionTopic);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
-    
-    const handleGenerateMeme = async () => {
-        if (!activeTopic || isGeneratingMeme) return;
-        setIsGeneratingMeme(true);
-        setError(null);
-        try {
-            const memeResult = await generateMeme(activeTopic);
-            setMeme(memeResult);
-        } catch (err) {
-            console.error("Failed to generate meme:", err);
-            setError(err instanceof Error ? err.message : 'Failed to generate meme.');
-        } finally {
-            setIsGeneratingMeme(false);
-        }
-    };
-    
-    const createContentGenerator = <T,>(
-        generatorFn: (topic: string) => Promise<T>,
-        setLoading: (loading: boolean) => void,
-        contentKey: keyof GeneratedPosts
+
+    const createOnDemandHandler = <T,>(
+        generator: (topic: string) => Promise<T>,
+        stateSetter: React.Dispatch<React.SetStateAction<boolean>>,
+        contentKey: keyof GeneratedPosts,
+        typeName: string
     ) => async () => {
         if (!activeTopic) return;
-        setLoading(true);
+        stateSetter(true);
         setError(null);
         try {
-            const result = await generatorFn(activeTopic);
+            const result = await generator(activeTopic);
             setGeneratedContent(prev => {
                 if (!prev) return null;
-                const updatedPosts = {
-                    ...prev.posts,
-                    [contentKey]: result,
-                };
+                const updatedContent = { [contentKey]: result };
+                const formattedContent = formatPostContent(updatedContent);
                 return {
                     ...prev,
-                    posts: formatPostContent(updatedPosts),
+                    posts: { ...prev.posts, [contentKey]: formattedContent[contentKey] },
                 };
             });
         } catch (err) {
-            console.error(`Failed to generate ${contentKey}:`, err);
-            setError(err instanceof Error ? err.message : `Failed to generate ${contentKey}.`);
+            console.error(`Failed to generate ${typeName}:`, err);
+            setError(err instanceof Error ? err.message : `Failed to generate ${typeName}.`);
         } finally {
-            setLoading(false);
+            stateSetter(false);
         }
     };
 
-    const handleGenerateBlog = createContentGenerator(generateBlogArticle, setIsGeneratingBlog, 'blogArticle');
-    const handleGeneratePoll = createContentGenerator(generateLinkedInPoll, setIsGeneratingPoll, 'linkedinPoll');
-    const handleGenerateCarousel = createContentGenerator(generateCarousel, setIsGeneratingCarousel, 'carouselPresentation');
-    const handleGenerateReport = createContentGenerator(generateReport, setIsGeneratingReport, 'researchReport');
-    const handleGeneratePodcast = createContentGenerator(generatePodcastScript, setIsGeneratingPodcast, 'podcastScript');
+    const handleGeneratePodcast = createOnDemandHandler(generatePodcastScript, setIsGeneratingPodcast, 'podcastScript', 'Podcast Script');
+    const handleGenerateBlog = createOnDemandHandler(generateBlogArticle, setIsGeneratingBlog, 'blogArticle', 'Blog Article');
+    const handleGeneratePoll = createOnDemandHandler(generateLinkedInPoll, setIsGeneratingPoll, 'linkedinPoll', 'LinkedIn Poll');
+    const handleGenerateCarousel = createOnDemandHandler(generateCarousel, setIsGeneratingCarousel, 'carouselPresentation', 'Carousel');
+    const handleGenerateReport = createOnDemandHandler(generateResearchReport, setIsGeneratingReport, 'researchReport', 'Research Report');
 
-    const handleGeneratePostsOnly = async (selectedTopic: string) => {
-        if (!selectedTopic.trim() || isLoading) return;
-
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        handleReset();
-        setIsLoading(true);
-        setTopic(selectedTopic);
-        setActiveTopic(selectedTopic);
-
-        try {
-            const postsResult = await generateCorePosts(selectedTopic);
-             setGeneratedContent({ 
-                posts: formatPostContent(postsResult),
-                images: [] // Start with no images
-            });
-        } catch (err) {
-            console.error("Generation failed for selected topic:", err);
-            setError(err instanceof Error ? err.message : 'An unexpected error occurred during content generation.');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-    
     const handleGenerateImages = async () => {
         if (!generatedContent || isRegeneratingImage) return;
 
@@ -363,7 +294,16 @@ const App: React.FC = () => {
             if (isEditingPrompt) setIsEditingPrompt(false);
         } catch (err) {
             console.error("Image generation failed:", err);
-            setError(err instanceof Error ? err.message : 'An unexpected error occurred during image generation.');
+            let errorMessage = 'An unexpected error occurred during image generation.';
+            if (err instanceof Error) {
+                // Check for specific keywords related to quota exhaustion
+                if (err.message.includes('quota') || err.message.includes('RESOURCE_EXHAUSTED')) {
+                    errorMessage = "Image generation failed: You've exceeded your API quota. Please check your plan and billing details in your Google AI Studio account.";
+                } else {
+                    errorMessage = err.message;
+                }
+            }
+            setError(errorMessage);
         } finally {
             setIsRegeneratingImage(false);
         }
@@ -375,17 +315,11 @@ const App: React.FC = () => {
         setIsLoading(false);
         setError(null);
         setGeneratedContent(null);
+        setTopicSuggestions(null);
         setSelectedImageIndex(0);
-        setIdeas([]);
-        setSchedule([]);
-        setMeme(null);
         setIsEditingPrompt(false);
         setEditedPrompt('');
         setSchedulingPost(null);
-        setCarouselSlideIndex(0);
-        setIsGeneratingIdeas(false);
-        setIsGeneratingSchedule(false);
-        setIsGeneratingMeme(false);
         if (audioUrl) {
             URL.revokeObjectURL(audioUrl);
         }
@@ -400,11 +334,10 @@ const App: React.FC = () => {
         switch(type) {
             case 'linkedin': contentToEdit = generatedContent.posts.linkedinPost; break;
             case 'x': contentToEdit = generatedContent.posts.xPost; break;
+            case 'podcast': contentToEdit = generatedContent.posts.podcastScript; break;
             case 'blog': contentToEdit = generatedContent.posts.blogArticle; break;
-            case 'report': contentToEdit = generatedContent.posts.researchReport; break;
             case 'poll': contentToEdit = generatedContent.posts.linkedinPoll; break;
             case 'carousel': contentToEdit = generatedContent.posts.carouselPresentation; break;
-            case 'podcast': contentToEdit = generatedContent.posts.podcastScript; break;
             default: return;
         }
         setEditingPost({ type, content: JSON.parse(JSON.stringify(contentToEdit)) }); // Deep copy
@@ -425,10 +358,6 @@ const App: React.FC = () => {
             switch(editingPost.type) {
                 case 'linkedin': newPosts.linkedinPost = editingPost.content; break;
                 case 'x': newPosts.xPost = editingPost.content; break;
-                case 'blog': newPosts.blogArticle = editingPost.content; break;
-                case 'report': newPosts.researchReport = editingPost.content; break;
-                case 'poll': newPosts.linkedinPoll = editingPost.content; break;
-                case 'carousel': newPosts.carouselPresentation = editingPost.content; break;
                 case 'podcast': 
                     newPosts.podcastScript = editingPost.content;
                     // If script is edited, invalidate the old audio
@@ -436,6 +365,9 @@ const App: React.FC = () => {
                     setAudioUrl(null);
                     setAudioError(null);
                     break;
+                case 'blog': newPosts.blogArticle = editingPost.content; break;
+                case 'poll': newPosts.linkedinPoll = editingPost.content; break;
+                case 'carousel': newPosts.carouselPresentation = editingPost.content; break;
             }
             return { ...prev, posts: newPosts };
         });
@@ -481,12 +413,18 @@ const App: React.FC = () => {
 
     const convertHtmlToPlainTextForCopy = (html: string) => {
         const tempDiv = document.createElement('div');
-        const htmlWithBreaks = html.replace(/<\/p>/g, '</p>\n').replace(/<br\s*\/?>/gi, '\n').replace(/<\/li>/g, '</li>\n');
+        const htmlWithBreaks = html.replace(/<\/p>/g, '</p>\n').replace(/<br\s*\/?>/gi, '\n').replace(/<\/li>/g, '</li>\n').replace(/<\/ol>/g, '</ol>\n').replace(/<\/ul>/g, '</ul>\n');
         tempDiv.innerHTML = htmlWithBreaks;
-        // A simple way to format lists for plain text
-        tempDiv.querySelectorAll('li').forEach(li => {
-            li.textContent = `* ${li.textContent}`;
+        
+        tempDiv.querySelectorAll('li').forEach((li, index) => {
+            const parent = li.parentElement;
+            if (parent?.tagName === 'OL') {
+                li.textContent = `${index + 1}. ${li.textContent}`;
+            } else {
+                li.textContent = `* ${li.textContent}`;
+            }
         });
+
         return tempDiv.innerText.trim();
     };
 
@@ -578,11 +516,10 @@ const App: React.FC = () => {
         switch (editingPost.type) {
             case 'linkedin': return 'Edit LinkedIn Post';
             case 'x': return 'Edit X Post';
-            case 'blog': return 'Edit Blog Article';
-            case 'report': return 'Edit Research Report';
-            case 'poll': return 'Edit LinkedIn Poll';
-            case 'carousel': return 'Edit Carousel Presentation';
             case 'podcast': return 'Edit Podcast Script';
+            case 'blog': return 'Edit Blog Article';
+            case 'poll': return 'Edit LinkedIn Poll';
+            case 'carousel': return 'Edit Carousel';
             default: return 'Edit Content';
         }
     };
@@ -591,20 +528,15 @@ const App: React.FC = () => {
         if (!editingPost) return null;
 
         const { type, content } = editingPost;
-
-        const updateContent = (newContent: any) => {
-            setEditingPost(prev => prev ? { ...prev, content: newContent } : null);
-        };
         
         const updateField = (field: string, value: any) => {
-            updateContent({ ...content, [field]: value });
+            setEditingPost(prev => prev ? { ...prev, content: { ...prev.content, [field]: value } } : null);
         };
 
         switch (type) {
             case 'linkedin':
-            case 'blog':
-            case 'report':
             case 'podcast':
+            case 'blog':
                 const bodyLabel = type === 'podcast' ? 'Script' : 'Body';
                 const bodyContent = type === 'podcast' ? content.script : content.body;
                 return (
@@ -637,83 +569,70 @@ const App: React.FC = () => {
                     </div>
                 );
             case 'poll':
-                const poll = content as LinkedInPoll;
-                const handleOptionChange = (index: number, value: string) => {
-                    const newOptions = [...poll.options];
-                    newOptions[index] = value;
-                    updateField('options', newOptions);
-                };
-                const addOption = () => updateField('options', [...poll.options, '']);
-                const removeOption = (index: number) => updateField('options', poll.options.filter((_, i) => i !== index));
-
                 return (
                     <div className="space-y-4">
-                         <div>
+                        <div>
                             <label htmlFor="poll-question" className="block text-sm font-medium text-slate-300 mb-1">Question</label>
                             <input
-                                id="poll-question" type="text" value={poll.question}
+                                id="poll-question" type="text" value={content.question}
                                 onChange={(e) => updateField('question', e.target.value)}
                                 className="w-full bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-slate-300 mb-1">Options</label>
-                            <div className="space-y-2">
-                            {poll.options.map((option, index) => (
-                                <div key={index} className="flex items-center gap-2">
-                                    <input
-                                        type="text" value={option}
-                                        onChange={(e) => handleOptionChange(index, e.target.value)}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-                                    />
-                                    <button onClick={() => removeOption(index)} className="p-2 text-red-400 hover:text-red-300 hover:bg-red-900/50 rounded-full"><TrashIcon /></button>
-                                </div>
+                            {content.options.map((option: string, index: number) => (
+                                <input
+                                    key={index} type="text" value={option}
+                                    onChange={(e) => {
+                                        const newOptions = [...content.options];
+                                        newOptions[index] = e.target.value;
+                                        updateField('options', newOptions);
+                                    }}
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition mt-2"
+                                />
                             ))}
-                            </div>
-                             <button onClick={addOption} className="mt-3 flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300"><PlusCircleIcon/> Add Option</button>
                         </div>
                     </div>
                 );
-            case 'carousel':
-                const carousel = content as CarouselPresentation;
-                const handleSlideChange = (index: number, field: 'title' | 'body', value: string) => {
-                    const newSlides = [...carousel.slides];
-                    newSlides[index] = { ...newSlides[index], [field]: value };
-                    updateField('slides', newSlides);
-                };
+             case 'carousel':
                 return (
-                     <div className="space-y-6">
-                         <div>
-                            <label htmlFor="carousel-title" className="block text-sm font-medium text-slate-300 mb-1">Main Title</label>
+                    <div className="space-y-4">
+                        <div>
+                            <label htmlFor="carousel-title" className="block text-sm font-medium text-slate-300 mb-1">Title</label>
                             <input
-                                id="carousel-title" type="text" value={carousel.title}
+                                id="carousel-title" type="text" value={content.title}
                                 onChange={(e) => updateField('title', e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                                className="w-full bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm"
                             />
                         </div>
-                        <div className="space-y-4">
-                            {carousel.slides.map((slide, index) => (
-                                <div key={index} className="p-3 bg-slate-900/50 border border-slate-700 rounded-lg">
-                                    <label className="block text-sm font-bold text-slate-300 mb-2">Slide {index + 1}</label>
-                                    <div className="space-y-2">
-                                         <input
-                                            type="text" placeholder="Slide Title" value={slide.title}
-                                            onChange={(e) => handleSlideChange(index, 'title', e.target.value)}
-                                            className="w-full bg-slate-700 border border-slate-600 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-                                        />
-                                        <textarea
-                                            placeholder="Slide Body" value={slide.body}
-                                            onChange={(e) => handleSlideChange(index, 'body', e.target.value)}
-                                            rows={3}
-                                            className="w-full bg-slate-700 border border-slate-600 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-                                        />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                        {content.slides.map((slide: any, index: number) => (
+                            <div key={index} className="p-3 border border-slate-700 rounded-md">
+                                <label className="block text-sm font-medium text-slate-300 mb-1">Slide {index + 1} Title</label>
+                                <input
+                                    type="text" value={slide.title}
+                                    onChange={(e) => {
+                                        const newSlides = [...content.slides];
+                                        newSlides[index].title = e.target.value;
+                                        updateField('slides', newSlides);
+                                    }}
+                                    className="w-full bg-slate-900 border border-slate-600 rounded-md px-3 py-2 text-sm mb-2"
+                                />
+                                <label className="block text-sm font-medium text-slate-300 mb-1">Slide {index + 1} Content</label>
+                                <textarea
+                                    value={convertHtmlToPlainTextForCopy(slide.content)}
+                                    onChange={(e) => {
+                                        const newSlides = [...content.slides];
+                                        newSlides[index].content = `<p>${e.target.value.replace(/\n/g, '</p><p>')}</p>`;
+                                        updateField('slides', newSlides);
+                                    }}
+                                    className="w-full bg-slate-900 border border-slate-600 rounded-md px-3 py-2 text-sm"
+                                    rows={3}
+                                />
+                            </div>
+                        ))}
                     </div>
                 );
-
             default: return null;
         }
     };
@@ -723,75 +642,94 @@ const App: React.FC = () => {
         <div className="bg-slate-900 text-white min-h-screen font-sans">
             <main className="container mx-auto px-4 py-8 md:py-16">
                 <header className="text-center mb-12">
-                     <div className="flex justify-center items-center gap-4 mb-4">
-                        <h1 className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text">
-                            Viral Post Generator AI
-                        </h1>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setIsScheduledPostsModalOpen(true)}
-                                className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold py-2 px-4 rounded-full flex items-center gap-2 transition-colors relative"
-                                aria-label="View scheduled posts"
-                            >
-                                <ClockIcon />
-                                <span>Scheduled</span>
-                                {scheduledPosts.length > 0 && <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">{scheduledPosts.length}</span>}
-                            </button>
-                            <button
-                                onClick={() => setIsSavedPostsModalOpen(true)}
-                                className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold py-2 px-4 rounded-full flex items-center gap-2 transition-colors relative"
-                                aria-label="View saved posts"
-                            >
-                                <BookOpenIcon />
-                                <span>Saved</span>
-                                {savedPosts.length > 0 && <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">{savedPosts.length}</span>}
-                            </button>
-                        </div>
-                    </div>
-                    <p className="text-lg text-slate-400">
-                        Craft compelling social media content, generate ideas, and plan your week with AI.
+                    <h1 className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text">
+                        Kenya Data & AI Society Content Hub
+                    </h1>
+                    <p className="text-lg text-slate-400 mt-4 max-w-3xl mx-auto">
+                        Welcome! Let's create inspiring content for our community, exploring data and AI through a Kenyan lens.
                     </p>
+                    <div className="flex justify-center gap-4 mt-6">
+                        <button
+                            onClick={() => setIsScheduledPostsModalOpen(true)}
+                            className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold py-2 px-4 rounded-full flex items-center gap-2 transition-colors relative"
+                            aria-label="View scheduled posts"
+                        >
+                            <ClockIcon />
+                            <span>Scheduled</span>
+                            {scheduledPosts.length > 0 && <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">{scheduledPosts.length}</span>}
+                        </button>
+                        <button
+                            onClick={() => setIsSavedPostsModalOpen(true)}
+                            className="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold py-2 px-4 rounded-full flex items-center gap-2 transition-colors relative"
+                            aria-label="View saved posts"
+                        >
+                            <BookOpenIcon />
+                            <span>Saved</span>
+                            {savedPosts.length > 0 && <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">{savedPosts.length}</span>}
+                        </button>
+                    </div>
                 </header>
 
-                <form onSubmit={handleGeneratePrimaryContent} className="max-w-3xl mx-auto mb-12">
-                    <div className="flex flex-col sm:flex-row gap-3">
-                        <input
-                            type="text"
-                            value={topic}
-                            onChange={(e) => setTopic(e.target.value)}
-                            placeholder="Enter your content topic... (e.g., 'The future of AI in Africa')"
-                            className="flex-grow bg-slate-800 border border-slate-700 rounded-md px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-                            disabled={isLoading}
-                        />
-                        <button
-                            type="submit"
-                            className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-md flex items-center justify-center transition-colors"
-                            disabled={isLoading || !topic.trim()}
-                        >
-                            {isLoading ? (
-                                <>
-                                    <LoadingSpinner />
-                                    <span>Generating...</span>
-                                </>
-                            ) : (
-                                <>
-                                    <SparklesIcon />
-                                    <span className="ml-2 whitespace-nowrap">Generate Content</span>
-                                </>
-                            )}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleReset}
-                            className="bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-slate-300 hover:text-white p-3 rounded-md flex items-center justify-center transition-colors"
-                            disabled={isLoading || (!hasResults && !topic.trim())}
-                            aria-label="Reset form and results"
-                        >
-                            <ResetIcon />
-                        </button>
+                <div className="max-w-4xl mx-auto mb-12">
+                    <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg p-6">
+                        <div className="flex flex-col md:flex-row gap-3">
+                            <input
+                                type="text"
+                                value={topic}
+                                onChange={(e) => setTopic(e.target.value)}
+                                placeholder="Enter your content topic... (e.g., 'The future of AI in Africa')"
+                                className="flex-grow bg-slate-800 border border-slate-700 rounded-md px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                                disabled={isLoading || isSuggesting}
+                            />
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={handleGeneratePrimaryContent}
+                                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-md flex items-center justify-center transition-colors"
+                                    disabled={isLoading || isSuggesting || !topic.trim()}
+                                >
+                                    {isLoading ? <><LoadingSpinner /><span>Generating...</span></> : <><SparklesIcon /><span className="ml-2 whitespace-nowrap">Generate Content</span></>}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleSuggestTopics}
+                                    className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-md flex items-center justify-center transition-colors"
+                                    disabled={isSuggesting || isLoading || !topic.trim()}
+                                >
+                                    {isSuggesting ? <><LoadingSpinner /><span>Suggesting...</span></> : <><PlusCircleIcon /><span className="ml-2 whitespace-nowrap">Suggest Plan</span></>}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleReset}
+                                    className="bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-slate-300 hover:text-white p-3 rounded-md flex items-center justify-center transition-colors"
+                                    disabled={isLoading || isSuggesting || (!hasResults && !topic.trim() && !topicSuggestions)}
+                                    aria-label="Reset form and results"
+                                >
+                                    <ResetIcon />
+                                </button>
+                            </div>
+                        </div>
+                        {error && <p className="text-red-400 mt-4 text-center">{error}</p>}
                     </div>
-                    {error && <p className="text-red-400 mt-4 text-center">{error}</p>}
-                </form>
+                </div>
+
+                {topicSuggestions && !isLoading && (
+                    <div className="max-w-4xl mx-auto mb-12 animate-fade-in">
+                        <h2 className="text-2xl font-bold text-center mb-6 text-slate-300">Weekly Content Suggestions</h2>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4">
+                            {topicSuggestions.map((suggestion, index) => (
+                                <div 
+                                    key={index} 
+                                    onClick={() => handleSuggestionClick(suggestion.topic)}
+                                    className="p-4 bg-slate-800 rounded-lg border border-slate-700 hover:bg-slate-700/80 hover:border-blue-500 cursor-pointer transition-all transform hover:-translate-y-1"
+                                >
+                                    <p className="font-bold text-blue-400 text-sm mb-1">{suggestion.day}</p>
+                                    <p className="text-slate-300 text-sm">{suggestion.topic}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
 
                 {isLoading && !generatedContent && (
                     <div className="text-center text-slate-400">
@@ -817,45 +755,6 @@ const App: React.FC = () => {
                         <div className="lg:col-span-2 space-y-8">
                             {generatedContent && (
                                 <>
-                                    {/* Podcast */}
-                                    <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg relative p-6">
-                                        <div className="flex justify-between items-center mb-4">
-                                            <h2 className="text-2xl font-bold flex items-center"><MicrophoneIcon/><span className="ml-2">Podcast Episode</span></h2>
-                                            {generatedContent.posts.podcastScript && <button onClick={() => handleOpenEditModal('podcast')} className="flex items-center gap-2 text-sm text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-md transition-colors"><EditIcon/> Edit Script</button>}
-                                        </div>
-                                        {isGeneratingPodcast ? (
-                                            <div className="flex items-center justify-center gap-2 text-slate-300 bg-slate-700/50 p-4 rounded-lg h-60"> <LoadingSpinner /> <span>Writing your podcast script...</span> </div>
-                                        ) : generatedContent.posts.podcastScript ? (
-                                            <>
-                                                <CopyButton text={`Podcast Title: ${generatedContent.posts.podcastScript.title}\n\n${convertHtmlToPlainTextForCopy(generatedContent.posts.podcastScript.script)}`} />
-                                                <h3 className="font-semibold text-xl text-purple-400">{generatedContent.posts.podcastScript.title}</h3>
-                                                
-                                                <div className="my-4">
-                                                    {audioError && <p className="text-red-400 text-sm mb-2">{audioError}</p>}
-                                                    {isGeneratingAudio ? (
-                                                        <div className="flex items-center justify-center gap-2 text-slate-300 bg-slate-700/50 p-4 rounded-lg"> <LoadingSpinner /> <span>Generating audio... This may take a moment.</span> </div>
-                                                    ) : audioUrl ? (
-                                                        <div className="flex flex-col sm:flex-row items-center gap-4 bg-slate-700/50 p-3 rounded-lg">
-                                                            <audio controls src={audioUrl} className="w-full sm:w-auto sm:flex-grow">Your browser does not support the audio element.</audio>
-                                                            <a href={audioUrl} download={`${generatedContent.posts.podcastScript.title.replace(/ /g, '_')}.mp3`} className="flex-shrink-0 w-full sm:w-auto flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition-colors">
-                                                                <DownloadIcon/> Download MP3
-                                                            </a>
-                                                        </div>
-                                                    ) : (
-                                                        <button onClick={handleGenerateAudio} disabled={isGeneratingAudio} className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-600 text-white font-bold py-3 px-4 rounded-md transition-colors">
-                                                            <MicrophoneIcon/> Generate Audio
-                                                        </button>
-                                                    )}
-                                                </div>
-                                                <div className="text-slate-300 my-4 prose prose-invert max-w-none max-h-60 overflow-y-auto p-2 border border-slate-700 rounded-md" dangerouslySetInnerHTML={{__html: generatedContent.posts.podcastScript.script }} />
-                                            </>
-                                        ) : (
-                                            <button onClick={handleGeneratePodcast} className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-slate-600 text-white font-bold py-3 px-4 rounded-md flex items-center justify-center transition-colors" disabled={isGeneratingPodcast}>
-                                                <SparklesIcon /> <span className="ml-2">Generate Podcast Script</span>
-                                            </button>
-                                        )}
-                                    </div>
-                                    
                                     {/* LinkedIn Post */}
                                     <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg relative p-6">
                                         <div className="flex justify-between items-center mb-4">
@@ -902,141 +801,191 @@ const App: React.FC = () => {
                                         </div>
                                     </div>
                                     
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg relative p-6">
-                                            <div className="flex justify-between items-center mb-4">
-                                                <h2 className="text-2xl font-bold flex items-center"><XIcon/><span className="ml-2">X Post</span></h2>
+                                    <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg relative p-6">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h2 className="text-2xl font-bold flex items-center"><XIcon/><span className="ml-2">X Post</span></h2>
+                                            <div className="flex items-center gap-2">
+                                                {scheduledXPost ? (
+                                                    <div className="flex items-center gap-2 text-sm text-purple-300">
+                                                        <ClockIcon />
+                                                        <span>Scheduled</span>
+                                                        <button onClick={() => handleUnschedule(scheduledXPost.id)} className="text-xs text-slate-400 hover:text-white">(Unschedule)</button>
+                                                    </div>
+                                                ) : (
+                                                   <button onClick={() => handleScheduleClick('x')} className="flex items-center gap-2 text-sm text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-md transition-colors"><ClockIcon/> Schedule</button>
+                                                )}
+                                                <button onClick={() => handleOpenEditModal('x')} className="flex items-center gap-2 text-sm text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-md transition-colors"><EditIcon/> Edit</button>
+                                            </div>
+                                        </div>
+                                        {schedulingPost === 'x' && (
+                                            <div className="my-4 p-4 bg-slate-700/50 rounded-lg animate-fade-in">
+                                                <label htmlFor="x-schedule" className="block text-sm font-semibold text-slate-300 mb-2">Schedule Date and Time</label>
                                                 <div className="flex items-center gap-2">
-                                                    {scheduledXPost ? (
-                                                        <div className="flex items-center gap-2 text-sm text-purple-300">
-                                                            <ClockIcon />
-                                                            <span>Scheduled</span>
-                                                            <button onClick={() => handleUnschedule(scheduledXPost.id)} className="text-xs text-slate-400 hover:text-white">(Unschedule)</button>
-                                                        </div>
+                                                    <input 
+                                                        type="datetime-local" 
+                                                        id="x-schedule"
+                                                        value={scheduleDateTime}
+                                                        onChange={(e) => setScheduleDateTime(e.target.value)}
+                                                        className="w-full bg-slate-900 border border-slate-600 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                                                    />
+                                                    <button onClick={handleConfirmSchedule} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-md transition-colors">Confirm</button>
+                                                    <button onClick={() => setSchedulingPost(null)} className="bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-3 rounded-md transition-colors">Cancel</button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {scheduledXPost && (
+                                            <div className="mb-4 text-center text-sm p-2 bg-purple-900/50 border border-purple-700 rounded-md text-purple-300">
+                                                Scheduled for: {new Date(scheduledXPost.scheduledAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                                            </div>
+                                        )}
+                                        <CopyButton text={`${convertHtmlToPlainTextForCopy(generatedContent.posts.xPost.body)}\n\n${generatedContent.posts.xPost.hashtags.map(h => `#${h}`).join(' ')}`} />
+                                        <div className="text-slate-300 mb-4 prose prose-invert max-w-none" dangerouslySetInnerHTML={{__html: generatedContent.posts.xPost.body }} />
+                                        <div className="flex flex-wrap gap-2">
+                                            {generatedContent.posts.xPost.hashtags.map((tag, i) => <span key={i} className="bg-slate-700 text-slate-300 px-2 py-1 rounded-full text-sm">#{tag}</span>)}
+                                        </div>
+                                    </div>
+
+                                    {/* On Demand Content Section */}
+                                    <div className="space-y-4">
+                                        <h2 className="text-2xl font-bold text-center text-slate-300">On-Demand Content Suite</h2>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                             {/* Podcast */}
+                                            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg p-6 flex flex-col min-h-[20rem]">
+                                                <h3 className="text-xl font-bold flex items-center mb-4"><MicrophoneIcon/><span className="ml-2">Podcast Episode</span></h3>
+                                                <div className="flex-grow flex flex-col justify-center">
+                                                    {isGeneratingPodcast ? (
+                                                        <div className="flex items-center justify-center gap-2 text-slate-300"><LoadingSpinner/><span>Writing script...</span></div>
+                                                    ) : generatedContent.posts.podcastScript ? (
+                                                         <>
+                                                            <button onClick={() => handleOpenEditModal('podcast')} className="self-end flex items-center gap-2 text-xs text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded-md transition-colors mb-2"><EditIcon/> Edit Script</button>
+                                                            <h4 className="font-semibold text-lg text-purple-400 truncate" title={generatedContent.posts.podcastScript.title}>{generatedContent.posts.podcastScript.title}</h4>
+                                                            <div className="my-2 text-center">
+                                                                {audioError && <p className="text-red-400 text-xs mb-2">{audioError}</p>}
+                                                                {isGeneratingAudio ? (
+                                                                    <div className="flex items-center justify-center gap-2 text-slate-300 text-sm"><LoadingSpinner/><span>Generating audio...</span></div>
+                                                                ) : audioUrl ? (
+                                                                    <div className="flex flex-col items-center gap-2">
+                                                                        <audio controls src={audioUrl} className="w-full">Your browser does not support the audio element.</audio>
+                                                                        <a href={audioUrl} download={`${generatedContent.posts.podcastScript.title.replace(/ /g, '_')}.mp3`} className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-md transition-colors text-sm">
+                                                                            <DownloadIcon/> Download MP3
+                                                                        </a>
+                                                                    </div>
+                                                                ) : (
+                                                                    <button onClick={handleGenerateAudio} disabled={isGeneratingAudio} className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-600 text-white font-bold py-2 px-3 rounded-md transition-colors">
+                                                                        <MicrophoneIcon/> Generate Audio
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                         </>
                                                     ) : (
-                                                       <button onClick={() => handleScheduleClick('x')} className="flex items-center gap-2 text-sm text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-md transition-colors"><ClockIcon/> Schedule</button>
+                                                        <button onClick={handleGeneratePodcast} className="w-full bg-purple-600/50 hover:bg-purple-600 border border-purple-500 disabled:bg-slate-600 text-white font-bold py-3 px-4 rounded-md flex items-center justify-center transition-colors" disabled={isGeneratingPodcast}>
+                                                            <SparklesIcon/><span className="ml-2">Generate Podcast</span>
+                                                        </button>
                                                     )}
-                                                    <button onClick={() => handleOpenEditModal('x')} className="flex items-center gap-2 text-sm text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-md transition-colors"><EditIcon/> Edit</button>
                                                 </div>
                                             </div>
-                                            {schedulingPost === 'x' && (
-                                                <div className="my-4 p-4 bg-slate-700/50 rounded-lg animate-fade-in">
-                                                    <label htmlFor="x-schedule" className="block text-sm font-semibold text-slate-300 mb-2">Schedule Date and Time</label>
-                                                    <div className="flex items-center gap-2">
-                                                        <input 
-                                                            type="datetime-local" 
-                                                            id="x-schedule"
-                                                            value={scheduleDateTime}
-                                                            onChange={(e) => setScheduleDateTime(e.target.value)}
-                                                            className="w-full bg-slate-900 border border-slate-600 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-                                                        />
-                                                        <button onClick={handleConfirmSchedule} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-md transition-colors">Confirm</button>
-                                                        <button onClick={() => setSchedulingPost(null)} className="bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-3 rounded-md transition-colors">Cancel</button>
-                                                    </div>
+                                            
+                                            {/* Blog Article */}
+                                            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg p-6 flex flex-col min-h-[20rem]">
+                                                <h3 className="text-xl font-bold flex items-center mb-4"><DocumentTextIcon/><span className="ml-2">Blog Article</span></h3>
+                                                <div className="flex-grow flex flex-col justify-center">
+                                                    {isGeneratingBlog ? (
+                                                        <div className="flex items-center justify-center gap-2 text-slate-300"><LoadingSpinner/><span>Writing article...</span></div>
+                                                    ) : generatedContent.posts.blogArticle ? (
+                                                         <>
+                                                            <button onClick={() => handleOpenEditModal('blog')} className="self-end flex items-center gap-2 text-xs text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded-md transition-colors mb-2"><EditIcon/> Edit</button>
+                                                            <h4 className="font-semibold text-lg text-blue-400 truncate" title={generatedContent.posts.blogArticle.title}>{generatedContent.posts.blogArticle.title}</h4>
+                                                            <div className="text-sm text-slate-400 my-2 prose prose-invert max-w-none max-h-40 overflow-y-auto p-1" dangerouslySetInnerHTML={{__html: generatedContent.posts.blogArticle.body}} />
+                                                            <div className="flex flex-wrap gap-1 mt-auto">
+                                                                {generatedContent.posts.blogArticle.hashtags.map((tag, i) => <span key={i} className="bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full text-xs">#{tag}</span>)}
+                                                            </div>
+                                                         </>
+                                                    ) : (
+                                                        <button onClick={handleGenerateBlog} className="w-full bg-blue-600/50 hover:bg-blue-600 border border-blue-500 disabled:bg-slate-600 text-white font-bold py-3 px-4 rounded-md flex items-center justify-center transition-colors" disabled={isGeneratingBlog}>
+                                                            <SparklesIcon/><span className="ml-2">Generate Article</span>
+                                                        </button>
+                                                    )}
                                                 </div>
-                                            )}
-                                            {scheduledXPost && (
-                                                <div className="mb-4 text-center text-sm p-2 bg-purple-900/50 border border-purple-700 rounded-md text-purple-300">
-                                                    Scheduled for: {new Date(scheduledXPost.scheduledAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                                            </div>
+
+                                             {/* LinkedIn Poll */}
+                                            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg p-6 flex flex-col min-h-[20rem]">
+                                                <h3 className="text-xl font-bold flex items-center mb-4"><ChartBarIcon/><span className="ml-2">LinkedIn Poll</span></h3>
+                                                <div className="flex-grow flex flex-col justify-center">
+                                                    {isGeneratingPoll ? (
+                                                        <div className="flex items-center justify-center gap-2 text-slate-300"><LoadingSpinner/><span>Creating poll...</span></div>
+                                                    ) : generatedContent.posts.linkedinPoll ? (
+                                                         <>
+                                                            <button onClick={() => handleOpenEditModal('poll')} className="self-end flex items-center gap-2 text-xs text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded-md transition-colors mb-2"><EditIcon/> Edit</button>
+                                                            <p className="font-semibold text-slate-300 mb-3">{generatedContent.posts.linkedinPoll.question}</p>
+                                                            <div className="space-y-2">
+                                                                {generatedContent.posts.linkedinPoll.options.map((opt, i) => (
+                                                                    <div key={i} className="bg-slate-700/50 text-slate-300 text-sm p-3 rounded-md border border-slate-700">{opt}</div>
+                                                                ))}
+                                                            </div>
+                                                         </>
+                                                    ) : (
+                                                        <button onClick={handleGeneratePoll} className="w-full bg-green-600/50 hover:bg-green-600 border border-green-500 disabled:bg-slate-600 text-white font-bold py-3 px-4 rounded-md flex items-center justify-center transition-colors" disabled={isGeneratingPoll}>
+                                                            <SparklesIcon/><span className="ml-2">Generate Poll</span>
+                                                        </button>
+                                                    )}
                                                 </div>
-                                            )}
-                                            <CopyButton text={`${convertHtmlToPlainTextForCopy(generatedContent.posts.xPost.body)}\n\n${generatedContent.posts.xPost.hashtags.map(h => `#${h}`).join(' ')}`} />
-                                            <div className="text-slate-300 mb-4 prose prose-invert max-w-none" dangerouslySetInnerHTML={{__html: generatedContent.posts.xPost.body }} />
-                                            <div className="flex flex-wrap gap-2">
-                                                {generatedContent.posts.xPost.hashtags.map((tag, i) => <span key={i} className="bg-slate-700 text-slate-300 px-2 py-1 rounded-full text-sm">#{tag}</span>)}
                                             </div>
-                                        </div>
-                                        
-                                        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg relative p-6">
-                                            <div className="flex justify-between items-center mb-4">
-                                                <h2 className="text-2xl font-bold flex items-center"><ChartBarIcon/><span className="ml-2">LinkedIn Poll</span></h2>
-                                                {generatedContent.posts.linkedinPoll && <button onClick={() => handleOpenEditModal('poll')} className="flex items-center gap-2 text-sm text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-md transition-colors"><EditIcon/> Edit</button>}
+                                            
+                                            {/* Carousel */}
+                                            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg p-6 flex flex-col min-h-[20rem]">
+                                                <h3 className="text-xl font-bold flex items-center mb-4"><CollectionIcon/><span className="ml-2">Carousel</span></h3>
+                                                <div className="flex-grow flex flex-col justify-center">
+                                                    {isGeneratingCarousel ? (
+                                                        <div className="flex items-center justify-center gap-2 text-slate-300"><LoadingSpinner/><span>Designing carousel...</span></div>
+                                                    ) : generatedContent.posts.carouselPresentation ? (
+                                                         <>
+                                                            <button onClick={() => handleOpenEditModal('carousel')} className="self-end flex items-center gap-2 text-xs text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded-md transition-colors mb-2"><EditIcon/> Edit</button>
+                                                            <div className="bg-slate-700/50 p-4 rounded-lg flex-grow flex flex-col justify-between">
+                                                                <div>
+                                                                    <h4 className="font-bold text-orange-400">{generatedContent.posts.carouselPresentation.slides[currentSlide].title}</h4>
+                                                                    <div className="text-sm mt-2 text-slate-300" dangerouslySetInnerHTML={{ __html: generatedContent.posts.carouselPresentation.slides[currentSlide].content }}/>
+                                                                </div>
+                                                                <div className="flex justify-between items-center mt-4">
+                                                                    <button onClick={() => setCurrentSlide(s => Math.max(0, s-1))} disabled={currentSlide === 0} className="text-xs disabled:opacity-50">Prev</button>
+                                                                    <span className="text-xs text-slate-400">{currentSlide + 1} / {generatedContent.posts.carouselPresentation.slides.length}</span>
+                                                                    <button onClick={() => setCurrentSlide(s => Math.min(generatedContent.posts.carouselPresentation!.slides.length - 1, s+1))} disabled={currentSlide === generatedContent.posts.carouselPresentation.slides.length - 1} className="text-xs disabled:opacity-50">Next</button>
+                                                                </div>
+                                                            </div>
+                                                         </>
+                                                    ) : (
+                                                        <button onClick={handleGenerateCarousel} className="w-full bg-orange-600/50 hover:bg-orange-600 border border-orange-500 disabled:bg-slate-600 text-white font-bold py-3 px-4 rounded-md flex items-center justify-center transition-colors" disabled={isGeneratingCarousel}>
+                                                            <SparklesIcon/><span className="ml-2">Generate Carousel</span>
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
-                                            {isGeneratingPoll ? (
-                                                <div className="flex items-center justify-center gap-2 text-slate-300 bg-slate-700/50 p-4 rounded-lg h-40"> <LoadingSpinner /> <span>Creating your poll...</span> </div>
-                                            ) : generatedContent.posts.linkedinPoll ? (
-                                                <>
-                                                    <CopyButton text={`Poll Question: ${generatedContent.posts.linkedinPoll.question}\n\nOptions:\n${generatedContent.posts.linkedinPoll.options.map(o => `- ${o}`).join('\n')}`} />
-                                                    <p className="font-semibold text-lg text-slate-200 mb-4">{generatedContent.posts.linkedinPoll.question}</p>
-                                                    <div className="space-y-2">
-                                                        {generatedContent.posts.linkedinPoll.options.map((option, i) => (
-                                                            <div key={i} className="bg-slate-700/50 text-slate-300 px-4 py-2 rounded-md text-sm border border-slate-700">{option}</div>
-                                                        ))}
-                                                    </div>
-                                                </>
-                                            ) : (
-                                                <button onClick={handleGeneratePoll} className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-slate-600 text-white font-bold py-3 px-4 rounded-md flex items-center justify-center transition-colors" disabled={isGeneratingPoll}>
-                                                    <SparklesIcon /> <span className="ml-2">Generate Poll</span>
-                                                </button>
-                                            )}
                                         </div>
                                     </div>
 
-                                    <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg relative p-6">
-                                        <div className="flex justify-between items-center mb-4">
-                                            <h2 className="text-2xl font-bold flex items-center"><CollectionIcon/><span className="ml-2">Carousel Presentation</span></h2>
-                                            {generatedContent.posts.carouselPresentation && <button onClick={() => handleOpenEditModal('carousel')} className="flex items-center gap-2 text-sm text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-md transition-colors"><EditIcon/> Edit</button>}
-                                        </div>
-                                        {isGeneratingCarousel ? (
-                                             <div className="flex items-center justify-center gap-2 text-slate-300 bg-slate-700/50 p-4 rounded-lg h-40"> <LoadingSpinner /> <span>Designing your carousel...</span> </div>
-                                        ) : generatedContent.posts.carouselPresentation ? (
-                                            <>
-                                                <CopyButton text={`Carousel: ${generatedContent.posts.carouselPresentation.title}\n\n${generatedContent.posts.carouselPresentation.slides.map((s, i) => `Slide ${i + 1}/${generatedContent.posts.carouselPresentation.slides.length}: ${s.title}\n${s.body}`).join('\n\n---\n\n')}`} />
-                                                <h3 className="font-semibold text-lg text-purple-400 mb-4">{generatedContent.posts.carouselPresentation.title}</h3>
-                                                <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700 min-h-[150px] flex flex-col justify-center">
-                                                    <p className="font-bold text-md text-slate-200">{generatedContent.posts.carouselPresentation.slides[carouselSlideIndex].title}</p>
-                                                    <p className="text-slate-300 mt-1 text-sm">{generatedContent.posts.carouselPresentation.slides[carouselSlideIndex].body}</p>
-                                                </div>
-                                                <div className="flex items-center justify-center gap-4 mt-4">
-                                                    <button onClick={() => setCarouselSlideIndex(prev => (prev - 1 + 5) % 5)} className="text-sm bg-slate-700 hover:bg-slate-600 px-4 py-1 rounded-md transition">Prev</button>
-                                                    <span className="text-sm text-slate-400">Slide {carouselSlideIndex + 1} / 5</span>
-                                                    <button onClick={() => setCarouselSlideIndex(prev => (prev + 1) % 5)} className="text-sm bg-slate-700 hover:bg-slate-600 px-4 py-1 rounded-md transition">Next</button>
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <button onClick={handleGenerateCarousel} className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-slate-600 text-white font-bold py-3 px-4 rounded-md flex items-center justify-center transition-colors" disabled={isGeneratingCarousel}>
-                                                <SparklesIcon /> <span className="ml-2">Generate Carousel</span>
-                                            </button>
-                                        )}
-                                    </div>
-                                    
-                                    <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg relative p-6">
-                                        <div className="flex justify-between items-center mb-4">
-                                            <h2 className="text-2xl font-bold flex items-center"><DocumentTextIcon/><span className="ml-2">Blog Article</span></h2>
-                                            {generatedContent.posts.blogArticle && <button onClick={() => handleOpenEditModal('blog')} className="flex items-center gap-2 text-sm text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-md transition-colors"><EditIcon/> Edit</button>}
-                                        </div>
-                                        {isGeneratingBlog ? (
-                                            <div className="flex items-center justify-center gap-2 text-slate-300 bg-slate-700/50 p-4 rounded-lg h-60"> <LoadingSpinner /> <span>Writing your article...</span> </div>
-                                        ) : generatedContent.posts.blogArticle ? (
-                                            <>
-                                                <CopyButton text={`Title: ${generatedContent.posts.blogArticle.title}\n\n${convertHtmlToPlainTextForCopy(generatedContent.posts.blogArticle.body)}`} />
-                                                <h3 className="font-semibold text-xl text-blue-400">{generatedContent.posts.blogArticle.title}</h3>
-                                                <div className="text-slate-300 my-4 prose prose-invert max-w-none" dangerouslySetInnerHTML={{__html: generatedContent.posts.blogArticle.body }} />
-                                            </>
-                                        ) : (
-                                            <button onClick={handleGenerateBlog} className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-slate-600 text-white font-bold py-3 px-4 rounded-md flex items-center justify-center transition-colors" disabled={isGeneratingBlog}>
-                                                <SparklesIcon /> <span className="ml-2">Generate Blog Article</span>
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    {/* Research Report */}
-                                    <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg relative p-6">
-                                        <div className="flex justify-between items-center mb-4">
-                                            <h2 className="text-2xl font-bold flex items-center"><DocumentTextIcon/><span className="ml-2">Research Report</span></h2>
-                                            {generatedContent.posts.researchReport && <button onClick={() => handleOpenEditModal('report')} className="flex items-center gap-2 text-sm text-slate-300 hover:text-white bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-md transition-colors"><EditIcon/> Edit</button>}
-                                        </div>
+                                    {/* Report Section */}
+                                    <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg p-6">
+                                        <h2 className="text-2xl font-bold flex items-center mb-4"><DocumentTextIcon/><span className="ml-2">In-depth Report</span></h2>
                                         {isGeneratingReport ? (
-                                            <div className="flex items-center justify-center gap-2 text-slate-300 bg-slate-700/50 p-4 rounded-lg h-60"> <LoadingSpinner /> <span>Compiling research...</span> </div>
+                                            <div className="flex items-center justify-center gap-2 text-slate-300 bg-slate-700/50 p-4 rounded-lg min-h-[10rem]"><LoadingSpinner/><span>Conducting research... This might take a moment.</span></div>
                                         ) : generatedContent.posts.researchReport ? (
-                                            <>
-                                                <CopyButton text={`Title: ${generatedContent.posts.researchReport.title}\n\n${convertHtmlToPlainTextForCopy(generatedContent.posts.researchReport.body)}`} />
-                                                <h3 className="font-semibold text-xl text-purple-400">{generatedContent.posts.researchReport.title}</h3>
-                                                <div className="text-slate-300 my-4 prose prose-invert max-w-none" dangerouslySetInnerHTML={{__html: generatedContent.posts.researchReport.body }} />
-                                            </>
+                                            <div>
+                                                <h3 className="font-semibold text-xl text-teal-400">{generatedContent.posts.researchReport.title}</h3>
+                                                <div className="text-slate-300 my-4 prose prose-invert max-w-none max-h-96 overflow-y-auto p-2 border border-slate-700 rounded-md" dangerouslySetInnerHTML={{__html: generatedContent.posts.researchReport.report }} />
+                                                <div className="mt-4">
+                                                    <h4 className="font-semibold text-slate-300 mb-2">Sources:</h4>
+                                                    <ul className="list-disc list-inside space-y-1 text-sm max-h-40 overflow-y-auto">
+                                                        {generatedContent.posts.researchReport.sources.map((source, i) => (
+                                                            <li key={i}>
+                                                                <a href={source.uri} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{source.title}</a>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            </div>
                                         ) : (
-                                            <button onClick={handleGenerateReport} className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-slate-600 text-white font-bold py-3 px-4 rounded-md flex items-center justify-center transition-colors" disabled={isGeneratingReport}>
-                                                <SparklesIcon /> <span className="ml-2">Generate Report</span>
+                                            <button onClick={handleGenerateReport} className="w-full bg-teal-600/50 hover:bg-teal-600 border border-teal-500 disabled:bg-slate-600 text-white font-bold py-3 px-4 rounded-md flex items-center justify-center transition-colors" disabled={isGeneratingReport}>
+                                                <SparklesIcon/><span className="ml-2">Generate Factual Report</span>
                                             </button>
                                         )}
                                     </div>
@@ -1045,12 +994,10 @@ const App: React.FC = () => {
                             {isLoading && !generatedContent && <div className="lg:col-span-2" />}
                         </div>
 
-                        {/* Side Column for Image, Ideas, Schedule */}
+                        {/* Side Column for Image */}
                         <div className="lg:sticky top-8 space-y-8 self-start">
                            {generatedContent && (
-                            <>
-                             {/* Image Generation */}
-                            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg p-6">
+                             <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg p-6">
                                 <h2 className="text-2xl font-bold mb-4">Generated Image</h2>
                                 <div className="aspect-video bg-slate-700/50 rounded-lg mb-4 flex items-center justify-center border border-slate-700 overflow-hidden">
                                     {isRegeneratingImage ? (
@@ -1161,81 +1108,6 @@ const App: React.FC = () => {
                                 </div>
                                 )}
                             </div>
-                            
-                             {/* Meme Section */}
-                            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg p-6">
-                                <h2 className="text-2xl font-bold flex items-center mb-4"><MemeIcon /><span className="ml-2">Viral Meme</span></h2>
-                                {isGeneratingMeme ? (
-                                    <div className="flex justify-center items-center h-32 text-slate-400">
-                                        <LoadingSpinner /> <span className="ml-3">Cooking up a fresh meme...</span>
-                                    </div>
-                                ) : meme ? (
-                                    <div className="space-y-4">
-                                        <div className="relative aspect-square bg-slate-700 rounded-lg overflow-hidden">
-                                            <img src={`data:image/jpeg;base64,${meme.image}`} alt={meme.caption} className="w-full h-full object-cover" />
-                                            <CopyImageButton base64Data={meme.image} />
-                                        </div>
-                                        <div className="relative bg-slate-700/50 p-3 rounded-md border border-slate-700">
-                                            <p className="text-slate-300 text-center italic text-sm pr-8">"{meme.caption}"</p>
-                                            <CopyButton text={meme.caption} />
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <button onClick={handleGenerateMeme} className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-slate-600 text-white font-bold py-3 px-4 rounded-md flex items-center justify-center transition-colors" disabled={isLoading || isGeneratingMeme}>
-                                        <SparklesIcon /> <span className="ml-2">Generate Meme</span>
-                                    </button>
-                                )}
-                            </div>
-
-
-                            {/* Ideas Section */}
-                            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg p-6">
-                                <h2 className="text-2xl font-bold flex items-center mb-4"><LightbulbIcon /><span className="ml-2">Post Ideas</span></h2>
-                                {isGeneratingIdeas ? (
-                                    <div className="flex justify-center items-center h-32 text-slate-400">
-                                        <LoadingSpinner /> <span className="ml-3">Generating fresh ideas...</span>
-                                    </div>
-                                ) : ideas.length > 0 ? (
-                                    <ul className="space-y-3">
-                                        {ideas.map((idea, index) => (
-                                            <li key={index} className="bg-slate-700/50 hover:bg-slate-700 border border-slate-700 rounded-md transition-colors">
-                                                <button onClick={() => handleGeneratePostsOnly(idea)} className="w-full text-left p-3 text-slate-300 text-sm font-medium">
-                                                    {idea}
-                                                </button>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                    <button onClick={handleGenerateIdeas} className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-slate-600 text-white font-bold py-3 px-4 rounded-md flex items-center justify-center transition-colors" disabled={isLoading || isGeneratingIdeas}>
-                                        <SparklesIcon /> <span className="ml-2">Generate Ideas</span>
-                                    </button>
-                                )}
-                            </div>
-
-                            {/* Schedule Section */}
-                            <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl shadow-lg p-6">
-                                <h2 className="text-2xl font-bold flex items-center mb-4"><CalendarIcon /><span className="ml-2">Weekly Schedule</span></h2>
-                                {isGeneratingSchedule ? (
-                                     <div className="flex justify-center items-center h-32 text-slate-400">
-                                        <LoadingSpinner /> <span className="ml-3">Building your content plan...</span>
-                                    </div>
-                                ) : schedule.length > 0 ? (
-                                    <div className="space-y-4">
-                                        {schedule.map((item, index) => (
-                                            <div key={index} className="bg-slate-700/50 p-3 rounded-md border border-slate-700">
-                                                <p className="font-bold text-white">{item.day} <span className="font-normal text-slate-400 text-sm">({item.time})</span></p>
-                                                <p className="text-sm text-slate-300 mt-1">{item.topic}</p>
-                                                <div className="mt-2">{item.platform === 'LinkedIn' ? <LinkedInIcon/> : <XIcon/>}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <button onClick={handleGenerateSchedule} className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-slate-600 text-white font-bold py-3 px-4 rounded-md flex items-center justify-center transition-colors" disabled={isLoading || isGeneratingSchedule}>
-                                        <SparklesIcon /> <span className="ml-2">Generate Schedule</span>
-                                    </button>
-                                )}
-                            </div>
-                            </>
                            )}
                         </div>
                     </div>
@@ -1292,6 +1164,9 @@ const App: React.FC = () => {
                 
                 .prose ul { list-style-position: inside; }
                 .prose ul > li::marker { content: '• '; color: #60a5fa; }
+                .prose ol { list-style-position: inside; }
+                .prose ol > li { padding-left: 0.5rem; }
+                .prose ol > li::marker { font-weight: bold; color: #60a5fa; }
             `}</style>
         </div>
     );

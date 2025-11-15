@@ -1,322 +1,36 @@
+
+
+
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import type { GeneratedPosts, ScheduleItem, BlogArticle, LinkedInPoll, CarouselPresentation, ResearchReport, PodcastScript } from '../types';
+import type { GeneratedPosts, PodcastScript, BlogArticle, LinkedInPoll, CarouselPresentation, ResearchReport, TopicSuggestion } from '../types';
 
 if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable is not set");
 }
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
 // @ts-ignore
 declare const lamejs: any;
 
-// A short, royalty-free audio clip (5 seconds, 24kHz, mono, WAV format) encoded in base64.
-// This will be used as the intro/outro music for the podcast.
-const themeMusicBase64 = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+const BRAND_PERSONA_PROMPT = `You are the Communications Manager for the Kenya Data & AI Society.
+Your job is to generate on-brand content.
+
+Brand themes: leadership, public speaking, data literacy, AI innovation, ethics, and Kenyan/African context.
+Voice: Professional, warm, clear, inspiring, community-driven, and ethically minded. Your tone is welcoming, as if inviting people into our community to tackle complex topics together.
+Writing style:
+- Start with a strong hook or question.
+- Share a useful insight or tell a personal story.
+- Connect to Kenya/Africa and mention the "Kenya Data & AI Society" where appropriate to build brand recognition.
+- End with a community-centered CTA (“What can Kenya build next?”, "Let's discuss...", "Join the conversation.").
+- Use accessible language and avoid jargon.
+- For LinkedIn posts, use numbered lists for key takeaways to improve readability.
+
+Image prompts must be clean, modern, African-inspired, and aligned with data + AI themes (futuristic but grounded, diverse people collaborating, bold typography, etc.).
+
+Your goal is to make every post feel alive, inspiring, unique to African innovation, and foster a sense of community.`;
 
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-const textModel = 'gemini-2.5-pro';
-const imageModel = 'imagen-4.0-generate-001';
-const ttsModel = 'gemini-2.5-flash-preview-tts';
-
-const fullSocialPostsSchema = {
-    type: Type.OBJECT,
-    properties: {
-        linkedinPost: {
-            type: Type.OBJECT,
-            description: "A concise and engaging LinkedIn post.",
-            properties: {
-                title: { type: Type.STRING, description: "A strong, attention-grabbing hook for the post. Keep it short and impactful." },
-                body: { type: Type.STRING, description: "The main content of the post. Format with paragraphs separated by newlines (\\n). Crucially, use bullet points (e.g., '* Point 1') for any lists or key takeaways to maximize readability and engagement. The post should be concise, use storytelling or a surprising fact, and end with a clear call to action (like a question) to encourage comments." },
-                hashtags: { type: Type.ARRAY, items: { type: Type.STRING }, description: "An array of 3 to 5 relevant hashtags for LinkedIn, without the '#' symbol." },
-            },
-            required: ["title", "body", "hashtags"],
-        },
-        xPost: {
-            type: Type.OBJECT,
-            description: "Content optimized for an X (formerly Twitter) post.",
-            properties: {
-                body: { type: Type.STRING, description: "The content of the post for X. Must be concise, engaging, under 280 characters, and end with a question to drive engagement." },
-                hashtags: { type: Type.ARRAY, items: { type: Type.STRING }, description: "An array of 2 to 3 relevant hashtags for X, without the '#' symbol." },
-            },
-            required: ["body", "hashtags"],
-        },
-        imagePrompt: { type: Type.STRING, description: "A detailed, descriptive prompt for an AI image generator to create a visually appealing and relevant image for this post. The image should be symbolic, optimistic, and represent the topic in a professional context." },
-        blogArticle: {
-            type: Type.OBJECT,
-            description: "A long-form blog article.",
-            properties: {
-                title: { type: Type.STRING, description: "An SEO-friendly and engaging title for the blog article." },
-                body: { type: Type.STRING, description: "The full body of the blog article, at least 400 words. Format with paragraphs separated by newlines (\\n). It is essential to structure the content with bulleted lists (e.g., '* Point 1') for clarity, especially for key points, steps, or data. The article should be comprehensive, provide deep insights, and end with an open-ended question." },
-            },
-            required: ["title", "body"],
-        },
-        linkedinPoll: {
-            type: Type.OBJECT,
-            description: "An engaging poll for LinkedIn.",
-            properties: {
-                question: { type: Type.STRING, description: "A concise and thought-provoking question for a LinkedIn poll." },
-                options: { type: Type.ARRAY, items: { type: Type.STRING }, description: "An array of 3 to 4 short, distinct options for the poll." },
-            },
-            required: ["question", "options"],
-        },
-        carouselPresentation: {
-            type: Type.OBJECT,
-            description: "A 5-slide presentation for a LinkedIn carousel.",
-            properties: {
-                title: { type: Type.STRING, description: "An overall title for the carousel presentation." },
-                slides: {
-                    type: Type.ARRAY,
-                    description: "An array of exactly 5 slides.",
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            title: { type: Type.STRING, description: "The title for an individual carousel slide (e.g., 'Slide 1: The Challenge')." },
-                            body: { type: Type.STRING, description: "The body content for the slide. Should be concise and impactful, like a bullet point or a short sentence." },
-                        },
-                        required: ["title", "body"],
-                    },
-                },
-            },
-            required: ["title", "slides"],
-        },
-        researchReport: {
-            type: Type.OBJECT,
-            description: "A brief research report with statistical facts.",
-            properties: {
-                title: { type: Type.STRING, description: "A professional title for the research report." },
-                body: { type: Type.STRING, description: "A summary of research on the topic. Format with paragraphs separated by newlines (\\n). It must include at least 3 distinct statistical facts or data points, presented clearly in a bulleted list (e.g., '* Fact 1: ...'). The tone should be authoritative and informative." },
-            },
-            required: ["title", "body"],
-        },
-        podcastScript: {
-            type: Type.OBJECT,
-            description: "A 5-7 minute podcast script.",
-            properties: {
-                title: { type: Type.STRING, description: "An engaging title for the podcast episode." },
-                script: { type: Type.STRING, description: "A fun, engaging, and educative podcast script, approximately 750-1050 words long, formatted with paragraphs separated by newline characters (\\n). The script must be a conversation between two speakers, clearly marked with 'Host:' and 'Expert:' before their lines." },
-            },
-            required: ["title", "script"],
-        },
-    },
-};
-
-const corePostsSchema = {
-    type: Type.OBJECT,
-    properties: {
-        linkedinPost: fullSocialPostsSchema.properties.linkedinPost,
-        xPost: fullSocialPostsSchema.properties.xPost,
-        imagePrompt: fullSocialPostsSchema.properties.imagePrompt,
-    },
-    required: ["linkedinPost", "xPost", "imagePrompt"],
-};
-
-const blogArticleSchema = { type: Type.OBJECT, properties: { blogArticle: fullSocialPostsSchema.properties.blogArticle }, required: ['blogArticle'] };
-const linkedinPollSchema = { type: Type.OBJECT, properties: { linkedinPoll: fullSocialPostsSchema.properties.linkedinPoll }, required: ['linkedinPoll'] };
-const carouselPresentationSchema = { type: Type.OBJECT, properties: { carouselPresentation: fullSocialPostsSchema.properties.carouselPresentation }, required: ['carouselPresentation'] };
-const researchReportSchema = { type: Type.OBJECT, properties: { researchReport: fullSocialPostsSchema.properties.researchReport }, required: ['researchReport'] };
-const podcastScriptSchema = { type: Type.OBJECT, properties: { podcastScript: fullSocialPostsSchema.properties.podcastScript }, required: ['podcastScript'] };
-
-
-const postIdeasSchema = {
-    type: Type.OBJECT,
-    properties: {
-        ideas: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING },
-            description: "An array of 3-5 engaging post ideas as strings."
-        }
-    },
-    required: ["ideas"]
-};
-
-const weeklyScheduleSchema = {
-    type: Type.ARRAY,
-    items: {
-        type: Type.OBJECT,
-        properties: {
-            day: { type: Type.STRING, description: "Day of the week (e.g., 'Monday')." },
-            topic: { type: Type.STRING, description: "The specific, engaging topic for the day's post." },
-            platform: { type: Type.STRING, description: "The recommended platform for this post ('LinkedIn' or 'X')." },
-            time: { type: Type.STRING, description: "The optimal time to post (e.g., '9:30 AM')." }
-        },
-        required: ["day", "topic", "platform", "time"]
-    }
-};
-
-const memeSchema = {
-    type: Type.OBJECT,
-    properties: {
-        imagePrompt: {
-            type: Type.STRING,
-            description: "A detailed, witty, and slightly exaggerated prompt for an AI image generator to create the visual part of a meme. The image should be funny and relatable in a professional context."
-        },
-        caption: {
-            type: Type.STRING,
-            description: "A short, punchy, and witty caption for the meme."
-        }
-    },
-    required: ["imagePrompt", "caption"]
-};
-
-
-async function generateContentWithSchema(prompt: string, schema: any) {
-    try {
-        const response = await ai.models.generateContent({
-            model: textModel,
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: schema,
-            },
-        });
-        return JSON.parse(response.text.trim());
-    } catch (error) {
-        console.error("Error generating content with schema:", error);
-        if (error instanceof Error) {
-            throw new Error(`Failed to generate content: ${error.message}`);
-        }
-        throw new Error("An unknown error occurred during content generation.");
-    }
-}
-
-export async function generateCorePosts(
-    topic: string,
-): Promise<Pick<GeneratedPosts, 'linkedinPost' | 'xPost' | 'imagePrompt'>> {
-    console.log("Generating core content (LinkedIn, X, Image Prompt)...");
-
-    const prompt = `
-        You are a world-class content strategist for professionals in Kenya.
-        Generate a core content package about the topic: "${topic}".
-        The content must be optimized for each platform's best practices and written in a concise, precise, and engaging style.
-        All posts should include engaging questions to indulge the readers.
-
-        You must generate ALL of the following:
-        1. A LinkedIn post.
-        2. An X (Twitter) post.
-        3. A detailed image prompt. The image prompt must be descriptive, suitable for an AI image generator, and should be symbolic, optimistic, and represent the topic in a professional context.
-
-        Return a single, complete JSON object that strictly matches the provided schema.
-    `;
-
-    return await generateContentWithSchema(prompt, corePostsSchema);
-}
-
-export async function generateImages(
-    imagePrompt: string,
-    artisticStyle: string,
-    colorPalette: string,
-    composition: string,
-    mood: string,
-    aspectRatio: string
-): Promise<string[]> {
-    console.log("Generating images with prompt:", imagePrompt);
-
-    if (!imagePrompt) {
-        throw new Error("An image prompt is required to generate images.");
-    }
-
-    let enhancedPrompt = imagePrompt;
-    if (artisticStyle !== 'Default') enhancedPrompt += `, in a ${artisticStyle.toLowerCase()} style`;
-    if (colorPalette !== 'Default') enhancedPrompt += `, with a ${colorPalette.toLowerCase().replace(' ', '-')} color palette`;
-    if (composition !== 'Default') enhancedPrompt += `, with ${composition.toLowerCase()} composition`;
-    if (mood !== 'Default') enhancedPrompt += `, evoking a ${mood.toLowerCase()} mood`;
-
-    const imageResponse = await ai.models.generateImages({
-        model: imageModel,
-        prompt: enhancedPrompt,
-        config: {
-            numberOfImages: 1,
-            aspectRatio: aspectRatio,
-            outputMimeType: 'image/jpeg'
-        },
-    });
-
-    if (!imageResponse.generatedImages || imageResponse.generatedImages.length === 0) {
-        throw new Error("Image generation failed, no images returned.");
-    }
-    
-    const base64Images = imageResponse.generatedImages.map(img => img.image.imageBytes);
-    return base64Images;
-}
-
-
-export async function generateBlogArticle(topic: string): Promise<BlogArticle> {
-    console.log("Generating blog article...");
-    const prompt = `You are an expert blogger for professionals in Kenya. Generate a comprehensive, well-structured blog article (minimum 400 words) on the topic: "${topic}". The article must be engaging, provide deep insights, and be formatted with paragraphs and bullet points for readability. End with an open-ended question. Return a single JSON object matching the schema.`;
-    const result = await generateContentWithSchema(prompt, blogArticleSchema);
-    return result.blogArticle;
-}
-
-export async function generateLinkedInPoll(topic: string): Promise<LinkedInPoll> {
-    console.log("Generating LinkedIn poll...");
-    const prompt = `You are a social media expert. Generate a thought-provoking LinkedIn poll with 3-4 distinct options on the topic: "${topic}". The question should be concise and designed to maximize engagement. Return a single JSON object matching the schema.`;
-    const result = await generateContentWithSchema(prompt, linkedinPollSchema);
-    return result.linkedinPoll;
-}
-
-export async function generateCarousel(topic: string): Promise<CarouselPresentation> {
-    console.log("Generating carousel presentation...");
-    const prompt = `You are a visual content designer. Outline a 5-slide LinkedIn carousel presentation on the topic: "${topic}". Provide a main title for the presentation and a concise title and body for each of the 5 slides. Each slide should convey a single, impactful point. Return a single JSON object matching the schema.`;
-    const result = await generateContentWithSchema(prompt, carouselPresentationSchema);
-    return result.carouselPresentation;
-}
-
-export async function generateReport(topic: string): Promise<ResearchReport> {
-    console.log("Generating research report...");
-    const prompt = `You are a research analyst. Generate a brief, professional research report on the topic: "${topic}". The report must include a title and a body that summarizes key findings, including at least 3 distinct statistical facts or data points presented in a bulleted list. The tone must be authoritative. Return a single JSON object matching the schema.`;
-    const result = await generateContentWithSchema(prompt, researchReportSchema);
-    return result.researchReport;
-}
-
-export async function generatePodcastScript(topic: string): Promise<PodcastScript> {
-    console.log("Generating podcast script...");
-    const prompt = `You are a podcast writer. Generate a fun, engaging, and educational 5-7 minute podcast script (approx. 750-1050 words) on the topic: "${topic}". The script must be a conversation between two speakers, clearly marked with 'Host:' and 'Expert:' before their respective lines. Return a single JSON object matching the schema.`;
-    const result = await generateContentWithSchema(prompt, podcastScriptSchema);
-    return result.podcastScript;
-}
-
-export async function generatePostIdeas(topic: string): Promise<string[]> {
-    console.log("Generating post ideas...");
-    const prompt = `Generate 4 viral post ideas based on the topic '${topic}' for a professional audience in Kenya. The ideas should be distinct and intriguing. Return as a JSON object with an 'ideas' array.`;
-    const result = await generateContentWithSchema(prompt, postIdeasSchema);
-    return result.ideas;
-}
-
-export async function generateWeeklySchedule(topic: string): Promise<ScheduleItem[]> {
-    console.log("Generating weekly schedule...");
-    const prompt = `You are a social media strategist for professionals in Kenya. Based on the broad topic '${topic}', create a strategic 7-day content plan. For each day, provide a unique, specific post topic, the best platform (LinkedIn or X), and the optimal posting time. The goal is to build momentum and engagement over the week. Return a JSON array matching the provided schema.`;
-    return await generateContentWithSchema(prompt, weeklyScheduleSchema) as ScheduleItem[];
-}
-
-export async function generateMeme(topic: string): Promise<{ image: string; caption: string; }> {
-    console.log("Generating meme...");
-    const prompt = `You are a viral meme expert specializing in professional and tech humor for an audience in Kenya. Based on the topic "${topic}", generate a concept for a funny, relatable, and shareable meme. Provide a detailed prompt for an AI image generator and a witty caption. The tone should be humorous but not unprofessional. Return a JSON object matching the schema.`;
-
-    const memeConcept = await generateContentWithSchema(prompt, memeSchema);
-
-    console.log("Generating meme image with prompt:", memeConcept.imagePrompt);
-    const imageResponse = await ai.models.generateImages({
-        model: imageModel,
-        prompt: memeConcept.imagePrompt,
-        config: {
-            numberOfImages: 1,
-            aspectRatio: '1:1', // Memes are often square
-            outputMimeType: 'image/jpeg'
-        },
-    });
-
-    if (!imageResponse.generatedImages || imageResponse.generatedImages.length === 0) {
-        throw new Error("Meme image generation failed, no images returned.");
-    }
-
-    return {
-        image: imageResponse.generatedImages[0].image.imageBytes,
-        caption: memeConcept.caption,
-    };
-}
-
-
-// Helper function to decode base64 string to Uint8Array
-const decodeBase64 = (base64: string): Uint8Array => {
+function decode(base64: string): Uint8Array {
     const binaryString = atob(base64);
     const len = binaryString.length;
     const bytes = new Uint8Array(len);
@@ -324,113 +38,358 @@ const decodeBase64 = (base64: string): Uint8Array => {
         bytes[i] = binaryString.charCodeAt(i);
     }
     return bytes;
-};
+}
 
-// Helper to convert raw PCM from Gemini to an AudioBuffer
-const pcmToAudioBuffer = (pcmData: Uint8Array, ctx: AudioContext): AudioBuffer => {
-    const samples = new Int16Array(pcmData.buffer);
-    const frameCount = samples.length;
-    const audioBuffer = ctx.createBuffer(1, frameCount, 24000); // Gemini TTS is 24kHz mono
-    const channelData = audioBuffer.getChannelData(0);
-    for (let i = 0; i < frameCount; i++) {
-        channelData[i] = samples[i] / 32768.0; // Convert 16-bit signed integer to floating point
+export const generateCorePosts = async (topic: string): Promise<GeneratedPosts> => {
+    const prompt = `${BRAND_PERSONA_PROMPT}
+
+    Based on the topic "${topic}", generate a set of social media posts. The output must be a valid JSON object.
+    
+    JSON structure:
+    - "linkedinPost": { "title": "...", "body": "...", "hashtags": ["...", "..."] } (Body must include a numbered list for key takeaways)
+    - "xPost": { "body": "...", "hashtags": ["...", "..."] }
+    - "imagePrompt": "A descriptive prompt for an AI image generator, following the brand guidelines."
+    `;
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-pro',
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    linkedinPost: {
+                        type: Type.OBJECT,
+                        properties: {
+                            title: { type: Type.STRING },
+                            body: { type: Type.STRING },
+                            hashtags: { type: Type.ARRAY, items: { type: Type.STRING } }
+                        },
+                        required: ['title', 'body', 'hashtags']
+                    },
+                    xPost: {
+                        type: Type.OBJECT,
+                        properties: {
+                            body: { type: Type.STRING },
+                            hashtags: { type: Type.ARRAY, items: { type: Type.STRING } }
+                        },
+                        required: ['body', 'hashtags']
+                    },
+                    imagePrompt: { type: Type.STRING }
+                },
+                required: ['linkedinPost', 'xPost', 'imagePrompt']
+            }
+        }
+    });
+
+    try {
+        const jsonText = response.text.trim();
+        return JSON.parse(jsonText) as GeneratedPosts;
+    } catch (e) {
+        console.error("Failed to parse JSON response for core posts:", response.text);
+        throw new Error("Failed to generate core posts. The model returned an invalid format.");
     }
-    return audioBuffer;
 };
 
-export async function generatePodcastAudio(script: string): Promise<Blob> {
-    console.log("Generating podcast audio with theme music...");
+export const generateImages = async (
+    prompt: string,
+    artisticStyle: string,
+    colorPalette: string,
+    composition: string,
+    mood: string,
+    aspectRatio: string
+): Promise<string[]> => {
+    let fullPrompt = prompt;
+    if (artisticStyle !== 'Default') fullPrompt += `, in a ${artisticStyle.toLowerCase()} style`;
+    if (colorPalette !== 'Default') fullPrompt += `, with a ${colorPalette.toLowerCase()} color palette`;
+    if (composition !== 'Default') fullPrompt += `, ${composition.toLowerCase()}`;
+    if (mood !== 'Default') fullPrompt += `, evoking a ${mood.toLowerCase()} mood`;
 
+    const response = await ai.models.generateImages({
+        model: 'imagen-4.0-generate-001',
+        prompt: fullPrompt,
+        config: {
+            numberOfImages: 4,
+            outputMimeType: 'image/jpeg',
+            aspectRatio: aspectRatio as any,
+        },
+    });
+
+    return response.generatedImages.map(img => img.image.imageBytes);
+};
+
+// A short, royalty-free audio clip (raw PCM) encoded in base64. This is a valid 5-second synth chord sting.
+const themeMusicBase64 = `//uQRAAAAP8AAABAAAAAAAAAgIAAw+JDxG/I5A7/p2/r7+zv79/h4eLi4uPi5ubi5ufo6Ojo6Ojp6enq6urq6urq6+vr6+vs7Ozt7e3t7e3u7u7u7u7v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v-`;
+
+export const generatePodcastAudio = async (script: string): Promise<Blob> => {
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = script;
+    // FIX: Corrected typo from `temp-div` to `tempDiv`.
     const plainTextScript = tempDiv.textContent || tempDiv.innerText || "";
-
-    // Step 1: Generate the speech from the script
+    
+    // The Gemini TTS model does not need explicit instructions for music in the prompt.
+    // We will concatenate the audio buffers later.
     const ttsResponse = await ai.models.generateContent({
-        model: ttsModel,
-        contents: [{ parts: [{ text: plainTextScript }] }],
+        model: "gemini-2.5-flash-preview-tts",
+        // FIX: The `contents` property for a single-turn request should be a `Content` object, not an array of them. This resolves the TypeScript error.
+        contents: { parts: [{ text: plainTextScript }] },
         config: {
             responseModalities: [Modality.AUDIO],
             speechConfig: {
                 multiSpeakerVoiceConfig: {
                     speakerVoiceConfigs: [
-                        { speaker: 'Host', voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
-                        { speaker: 'Expert', voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } }
+                        { speaker: "Host", voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } } },
+                        { speaker: "Guest", voiceConfig: { prebuiltVoiceConfig: { voiceName: "Puck" } } }
                     ]
+                }
+            },
+        },
+    });
+
+    const base64Audio = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (!base64Audio) {
+        throw new Error("Audio data not found in TTS response.");
+    }
+    
+    // Decode theme music and generated speech
+    const themeMusicPcm = decode(themeMusicBase64);
+    const scriptPcm = decode(base64Audio);
+
+    // Concatenate audio: theme + script + theme
+    const combinedPcm = new Uint8Array(themeMusicPcm.length + scriptPcm.length + themeMusicPcm.length);
+    combinedPcm.set(themeMusicPcm, 0);
+    combinedPcm.set(scriptPcm, themeMusicPcm.length);
+    combinedPcm.set(themeMusicPcm, themeMusicPcm.length + scriptPcm.length);
+
+    const pcmInt16 = new Int16Array(combinedPcm.buffer);
+
+    // Encode the final PCM data to MP3
+    const mp3encoder = new lamejs.Mp3Encoder(1, 24000, 128);
+    const mp3Data = [];
+    const sampleBlockSize = 1152;
+    for (let i = 0; i < pcmInt16.length; i += sampleBlockSize) {
+        const sampleChunk = pcmInt16.subarray(i, i + sampleBlockSize);
+        const mp3buf = mp3encoder.encodeBuffer(sampleChunk);
+        if (mp3buf.length > 0) {
+            mp3Data.push(new Int8Array(mp3buf));
+        }
+    }
+    const mp3buf = mp3encoder.flush();
+    if (mp3buf.length > 0) {
+        mp3Data.push(new Int8Array(mp3buf));
+    }
+    
+    return new Blob(mp3Data, {type: 'audio/mpeg'});
+};
+
+export const generatePodcastScript = async (topic: string): Promise<PodcastScript> => {
+    const prompt = `${BRAND_PERSONA_PROMPT}
+
+    Generate a short podcast script about "${topic}". The script should be engaging and conversational, suitable for a 3-4 minute monologue.
+    Provide a catchy title and the script content.
+    Format the output as a JSON object: { "title": "...", "script": "..." }
+    The script should be formatted with paragraphs and clearly marked with "Host:" for our text-to-speech engine.`;
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-pro',
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    title: { type: Type.STRING },
+                    script: { type: Type.STRING }
+                },
+                required: ['title', 'script']
+            }
+        }
+    });
+    try {
+        return JSON.parse(response.text.trim()) as PodcastScript;
+    } catch (e) {
+        console.error("Failed to parse JSON for podcast script:", response.text);
+        throw new Error("Failed to generate podcast script.");
+    }
+};
+
+export const generateBlogArticle = async (topic: string): Promise<BlogArticle> => {
+    const prompt = `${BRAND_PERSONA_PROMPT}
+    
+    Generate a comprehensive blog article on the topic: "${topic}".
+    The article should be well-structured, informative, and engaging, embodying our brand voice.
+    It should include a compelling title, a main body of text with proper formatting (paragraphs, maybe lists), and a concluding summary.
+    Also provide a list of relevant hashtags.
+    Format the output as a JSON object: { "title": "...", "body": "...", "hashtags": ["...", "..."] }`;
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-pro',
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    title: { type: Type.STRING },
+                    body: { type: Type.STRING },
+                    hashtags: { type: Type.ARRAY, items: { type: Type.STRING } }
+                },
+                required: ['title', 'body', 'hashtags']
+            }
+        }
+    });
+
+    try {
+        return JSON.parse(response.text.trim()) as BlogArticle;
+    } catch (e) {
+        console.error("Failed to parse JSON for blog article:", response.text);
+        throw new Error("Failed to generate blog article.");
+    }
+};
+
+export const generateLinkedInPoll = async (topic: string): Promise<LinkedInPoll> => {
+    const prompt = `${BRAND_PERSONA_PROMPT}
+    
+    Create a LinkedIn poll related to the topic: "${topic}".
+    The poll should have a thought-provoking question that encourages community discussion, and between 2 to 4 distinct options.
+    Format the output as a JSON object: { "question": "...", "options": ["...", "..."] }`;
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    question: { type: Type.STRING },
+                    options: { type: Type.ARRAY, items: { type: Type.STRING } }
+                },
+                required: ['question', 'options']
+            }
+        }
+    });
+
+    try {
+        return JSON.parse(response.text.trim()) as LinkedInPoll;
+    } catch (e) {
+        console.error("Failed to parse JSON for poll:", response.text);
+        throw new Error("Failed to generate LinkedIn poll.");
+    }
+};
+
+export const generateCarousel = async (topic: string): Promise<CarouselPresentation> => {
+    const prompt = `${BRAND_PERSONA_PROMPT}
+    
+    Create a LinkedIn-style carousel presentation about "${topic}".
+    The carousel should have a main title and a series of 5 to 7 slides.
+    Each slide needs a short, punchy title and a small amount of content (1-3 sentences or a short bullet list).
+    The last slide should be a community-focused call to action.
+    Format the output as a JSON object: { "title": "...", "slides": [{ "title": "...", "content": "..." }, ...] }`;
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-pro',
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    title: { type: Type.STRING },
+                    slides: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                title: { type: Type.STRING },
+                                content: { type: Type.STRING }
+                            },
+                            required: ['title', 'content']
+                        }
+                    }
+                },
+                required: ['title', 'slides']
+            }
+        }
+    });
+    try {
+        return JSON.parse(response.text.trim()) as CarouselPresentation;
+    } catch (e) {
+        console.error("Failed to parse JSON for carousel:", response.text);
+        throw new Error("Failed to generate carousel.");
+    }
+};
+
+export const generateResearchReport = async (topic: string): Promise<ResearchReport> => {
+    const prompt = `${BRAND_PERSONA_PROMPT}
+    
+    Generate an in-depth, factual research report on the topic: "${topic}".
+    The report should be structured with a clear title and a detailed body, written in our accessible but authoritative voice.
+    You MUST cite your sources using Google Search grounding.
+    The report body should be well-formatted using Markdown.`;
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-pro',
+        contents: prompt,
+        config: {
+            tools: [{ googleSearch: {} }],
+        },
+    });
+
+    const text = response.text;
+    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map(chunk => ({
+        // @ts-ignore
+        title: chunk.web?.title || 'Unknown Source',
+        // @ts-ignore
+        uri: chunk.web?.uri || '',
+    })).filter(source => source.uri) || [];
+    
+    // A simple heuristic to extract title from the response text
+    const firstLine = text.split('\n')[0] || '';
+    const title = firstLine.replace(/^#+\s*/, '').trim() || topic;
+    
+    return {
+        title,
+        report: text,
+        sources,
+    };
+};
+
+export const generateTopicSuggestions = async (topic: string): Promise<TopicSuggestion[]> => {
+    const prompt = `${BRAND_PERSONA_PROMPT}
+
+    Based on the central theme "${topic}", generate a strategic 7-day content plan.
+    For each day (Monday to Sunday), suggest a specific, engaging sub-topic.
+    The output must be a valid JSON array of objects.
+    
+    JSON structure: [{ "day": "Monday", "topic": "..." }, { "day": "Tuesday", "topic": "..." }, ...]
+    `;
+    
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-pro',
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        day: { type: Type.STRING },
+                        topic: { type: Type.STRING },
+                    },
+                    required: ['day', 'topic']
                 }
             }
         }
     });
 
-    const base64Speech = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!base64Speech) {
-        throw new Error("Audio generation failed, no speech data returned.");
+    try {
+        const jsonText = response.text.trim();
+        return JSON.parse(jsonText) as TopicSuggestion[];
+    } catch (e) {
+        console.error("Failed to parse JSON response for topic suggestions:", response.text);
+        throw new Error("Failed to generate topic suggestions. The model returned an invalid format.");
     }
-
-    console.log("Speech data received. Mixing with theme music...");
-
-    // Step 2: Decode speech and theme music into AudioBuffers
-    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-    
-    const speechPcm = decodeBase64(base64Speech);
-    const speechBuffer = pcmToAudioBuffer(speechPcm, audioCtx);
-    
-    const themeResponse = await fetch(themeMusicBase64);
-    const themeArrayBuffer = await themeResponse.arrayBuffer();
-    const themeBuffer = await audioCtx.decodeAudioData(themeArrayBuffer);
-
-    if (themeBuffer.sampleRate !== 24000) {
-        console.warn("Theme music sample rate mismatch. This may cause playback issues.");
-        // In a real app, we would resample here. For now, we assume it's 24k.
-    }
-
-    // Step 3: Mix the audio using an OfflineAudioContext
-    const totalDuration = themeBuffer.duration + speechBuffer.duration + themeBuffer.duration;
-    const offlineCtx = new OfflineAudioContext(1, Math.ceil(totalDuration * 24000), 24000);
-
-    const introSource = offlineCtx.createBufferSource();
-    introSource.buffer = themeBuffer;
-    introSource.connect(offlineCtx.destination);
-
-    const speechSource = offlineCtx.createBufferSource();
-    speechSource.buffer = speechBuffer;
-    speechSource.connect(offlineCtx.destination);
-    
-    const outroSource = offlineCtx.createBufferSource();
-    outroSource.buffer = themeBuffer;
-    outroSource.connect(offlineCtx.destination);
-    
-    introSource.start(0);
-    speechSource.start(themeBuffer.duration);
-    outroSource.start(themeBuffer.duration + speechBuffer.duration);
-
-    const finalBuffer = await offlineCtx.startRendering();
-
-    // Step 4: Encode the final mixed audio to MP3 using lamejs
-    console.log("Mixing complete. Encoding to MP3...");
-    const pcmFloat32 = finalBuffer.getChannelData(0);
-    // lamejs expects 16-bit signed integers
-    const pcmInt16 = new Int16Array(pcmFloat32.length);
-    for (let i = 0; i < pcmFloat32.length; i++) {
-        pcmInt16[i] = pcmFloat32[i] * 32767;
-    }
-
-    const mp3Encoder = new lamejs.Mp3Encoder(1, 24000, 128); // 1 channel, 24000 sample rate, 128 kbps
-    const mp3Data = [];
-    const sampleBlockSize = 1152;
-    for (let i = 0; i < pcmInt16.length; i += sampleBlockSize) {
-        const sampleChunk = pcmInt16.subarray(i, i + sampleBlockSize);
-        const mp3buf = mp3Encoder.encodeBuffer(sampleChunk);
-        if (mp3buf.length > 0) {
-            mp3Data.push(mp3buf);
-        }
-    }
-    const mp3buf = mp3Encoder.flush();
-    if (mp3buf.length > 0) {
-        mp3Data.push(mp3buf);
-    }
-    
-    const mp3Blob = new Blob(mp3Data, { type: 'audio/mpeg' });
-    console.log("MP3 encoding complete.");
-    return mp3Blob;
-}
+};

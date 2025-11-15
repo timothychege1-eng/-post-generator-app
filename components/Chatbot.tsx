@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GoogleGenAI, Chat } from '@google/genai';
 import { ChatBubbleIcon, CloseIcon, SendIcon, LoadingSpinner } from './icons';
@@ -12,7 +13,7 @@ const Chatbot: React.FC = () => {
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [messages, setMessages] = useState<Message[]>([
-        { role: 'model', text: "Hello! I'm your AI assistant. How can I help you with your content strategy today?" }
+        { role: 'model', text: "Hello! I'm your AI assistant for the Kenya Data & AI Society. How can we spark a great conversation today?" }
     ]);
     const chatRef = useRef<Chat | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -23,7 +24,7 @@ const Chatbot: React.FC = () => {
             chatRef.current = ai.chats.create({
                 model: 'gemini-2.5-flash',
                 config: {
-                    systemInstruction: 'You are a helpful and friendly social media and content strategy assistant integrated into a viral post generation app. Be concise and helpful.',
+                    systemInstruction: 'You are a friendly and expert AI assistant for the Kenya Data & AI Society. Your role is to help our community members brainstorm content ideas, refine their messaging, and explore topics related to data, AI, leadership, and public speaking within a Kenyan context. Embody our brand voice: welcoming, inspiring, and community-focused. Provide clear, concise, and actionable advice.',
                 },
             });
         } else {

@@ -9,9 +9,15 @@ export interface XPost {
   hashtags: string[];
 }
 
+export interface PodcastScript {
+    title: string;
+    script: string; // Markdown/HTML content
+}
+
 export interface BlogArticle {
     title: string;
     body: string; // Markdown/HTML content
+    hashtags: string[];
 }
 
 export interface LinkedInPoll {
@@ -21,7 +27,7 @@ export interface LinkedInPoll {
 
 export interface CarouselSlide {
     title: string;
-    body: string;
+    content: string;
 }
 
 export interface CarouselPresentation {
@@ -31,12 +37,8 @@ export interface CarouselPresentation {
 
 export interface ResearchReport {
     title: string;
-    body: string; // Markdown/HTML with facts
-}
-
-export interface PodcastScript {
-    title: string;
-    script: string; // Markdown/HTML content
+    report: string; // Markdown/HTML content
+    sources: { title: string; uri: string }[];
 }
 
 
@@ -44,18 +46,11 @@ export interface GeneratedPosts {
   linkedinPost: LinkedInPost;
   xPost: XPost;
   imagePrompt: string;
+  podcastScript?: PodcastScript;
   blogArticle?: BlogArticle;
   linkedinPoll?: LinkedInPoll;
   carouselPresentation?: CarouselPresentation;
   researchReport?: ResearchReport;
-  podcastScript?: PodcastScript;
-}
-
-export interface ScheduleItem {
-    day: string;
-    topic: string;
-    platform: 'LinkedIn' | 'X';
-    time: string;
 }
 
 export interface SavedContent {
@@ -70,5 +65,10 @@ export interface ScheduledPost {
     platform: 'LinkedIn' | 'X';
     scheduledAt: string; // ISO date string
     content: LinkedInPost | XPost;
+    topic: string;
+}
+
+export interface TopicSuggestion {
+    day: string;
     topic: string;
 }
