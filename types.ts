@@ -72,3 +72,8 @@ export interface TopicSuggestion {
     day: string;
     topic: string;
 }
+
+export interface YoutubeTopicSuggestion {
+    topic: string;
+    description: string;
+}
