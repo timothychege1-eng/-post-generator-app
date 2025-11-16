@@ -26,12 +26,46 @@ import ScheduledPostsModal from './components/ScheduledPostsModal';
 
 const CopyButton: React.FC<{ text: string }> = ({ text }) => {
     const [copied, setCopied] = useState(false);
-    const handleCopy = () => {
-        navigator.clipboard.writeText(text).then(() => {
+
+    const handleCopy = async () => {
+        try {
+            // Use the modern Clipboard API
+            await navigator.clipboard.writeText(text);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
-        });
+        } catch (err) {
+            console.warn('Clipboard API failed, falling back to legacy method.', err);
+            
+            // Fallback for browsers/environments that don't support the Clipboard API or have permission issues.
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            
+            // Make the textarea invisible
+            textArea.style.position = 'fixed';
+            textArea.style.top = '-9999px';
+            textArea.style.left = '-9999px';
+            
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                } else {
+                    alert('Copying text failed. Please copy manually.');
+                }
+            } catch (legacyErr) {
+                console.error('Legacy copy method failed:', legacyErr);
+                alert('Copying text failed. Please copy manually.');
+            }
+            
+            document.body.removeChild(textArea);
+        }
     };
+
     return (
         <button
             onClick={handleCopy}
