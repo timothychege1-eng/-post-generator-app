@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import {
     generateCorePosts,
@@ -222,8 +223,6 @@ const App: React.FC = () => {
         setError(null);
         setGeneratedContent(null);
         setActiveTopic(useTopic);
-        setTopicSuggestions(null);
-        setYoutubeSuggestions(null);
 
         try {
             const corePosts = await generateCorePosts(useTopic);
