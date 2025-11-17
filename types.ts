@@ -12,17 +12,20 @@ export interface XPost {
 export interface PodcastScript {
     title: string;
     script: string; // Markdown/HTML content
+    sources?: { title: string; uri: string }[];
 }
 
 export interface BlogArticle {
     title: string;
     body: string; // Markdown/HTML content
     hashtags: string[];
+    sources?: { title: string; uri: string }[];
 }
 
 export interface LinkedInPoll {
     question: string;
     options: string[];
+    sources?: { title: string; uri: string }[];
 }
 
 export interface CarouselSlide {
@@ -33,6 +36,7 @@ export interface CarouselSlide {
 export interface CarouselPresentation {
     title: string;
     slides: CarouselSlide[];
+    sources?: { title: string; uri: string }[];
 }
 
 export interface ResearchReport {
@@ -51,6 +55,7 @@ export interface GeneratedPosts {
   linkedinPoll?: LinkedInPoll;
   carouselPresentation?: CarouselPresentation;
   researchReport?: ResearchReport;
+  sources?: { title: string; uri: string }[];
 }
 
 export interface SavedContent {

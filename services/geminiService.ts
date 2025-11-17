@@ -1,3 +1,5 @@
+
+
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import type { GeneratedPosts, PodcastScript, BlogArticle, LinkedInPoll, CarouselPresentation, ResearchReport, TopicSuggestion, YoutubeTopicSuggestion } from '../types';
 
@@ -37,54 +39,75 @@ function decode(base64: string): Uint8Array {
     return bytes;
 }
 
+const extractSources = (response: any): { title: string; uri: string }[] => {
+    // Using `any` for response to handle the dynamic structure, but this is where the sources are located.
+    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+    if (!chunks) {
+        return [];
+    }
+    
+    // Using a set to ensure unique URIs
+    const uniqueSources = new Map<string, { title: string; uri: string }>();
+
+    chunks.forEach((chunk: any) => {
+        if (chunk.web && chunk.web.uri) {
+            if (!uniqueSources.has(chunk.web.uri)) {
+                uniqueSources.set(chunk.web.uri, {
+                    title: chunk.web.title || 'Unknown Source',
+                    uri: chunk.web.uri,
+                });
+            }
+        }
+    });
+    
+    return Array.from(uniqueSources.values());
+};
+
+const extractJson = (text: string): any => {
+    // Look for JSON inside a markdown code block, with optional language tag
+    const match = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    const jsonString = match ? match[1] : text;
+
+    try {
+        return JSON.parse(jsonString);
+    } catch (e) {
+        console.error("Failed to parse JSON string:", jsonString);
+        // This will be caught by the calling function's try-catch block
+        throw new Error("Invalid JSON format received from the model.");
+    }
+};
+
+
 export const generateCorePosts = async (topic: string): Promise<GeneratedPosts> => {
     const prompt = `${BRAND_PERSONA_PROMPT}
 
-    Based on the topic "${topic}", generate a set of social media posts. The output must be a valid JSON object.
+    Based on the topic "${topic}", generate a set of social media posts. Use the provided web search results to incorporate recent news, data, or events to make the posts more timely, relevant, and engaging.
     
-    JSON structure:
-    - "linkedinPost": { "title": "...", "body": "...", "hashtags": ["...", "..."] } (Body must include a numbered list for key takeaways)
-    - "xPost": { "body": "...", "hashtags": ["...", "..."] }
-    - "imagePrompt": "A descriptive prompt for an AI image generator, following the brand guidelines."
+    Format your response as a valid JSON object inside a markdown code block. The JSON object must adhere to the following structure:
+    \`\`\`json
+    {
+        "linkedinPost": { "title": "...", "body": "...", "hashtags": ["...", "..."] },
+        "xPost": { "body": "...", "hashtags": ["...", "..."] },
+        "imagePrompt": "A descriptive prompt for an AI image generator, following the brand guidelines."
+    }
+    \`\`\`
     `;
 
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-pro',
         contents: prompt,
         config: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    linkedinPost: {
-                        type: Type.OBJECT,
-                        properties: {
-                            title: { type: Type.STRING },
-                            body: { type: Type.STRING },
-                            hashtags: { type: Type.ARRAY, items: { type: Type.STRING } }
-                        },
-                        required: ['title', 'body', 'hashtags']
-                    },
-                    xPost: {
-                        type: Type.OBJECT,
-                        properties: {
-                            body: { type: Type.STRING },
-                            hashtags: { type: Type.ARRAY, items: { type: Type.STRING } }
-                        },
-                        required: ['body', 'hashtags']
-                    },
-                    imagePrompt: { type: Type.STRING }
-                },
-                required: ['linkedinPost', 'xPost', 'imagePrompt']
-            }
+            tools: [{ googleSearch: {} }],
         }
     });
 
+    const sources = extractSources(response);
+
     try {
-        const jsonText = response.text.trim();
-        return JSON.parse(jsonText) as GeneratedPosts;
+        const posts = extractJson(response.text.trim()) as GeneratedPosts;
+        return { ...posts, sources };
     } catch (e) {
-        console.error("Failed to parse JSON response for core posts:", response.text);
+        console.error("Failed to parse JSON response for core posts:", response.text, e);
         throw new Error("Failed to generate core posts. The model returned an invalid format.");
     }
 };
@@ -98,7 +121,14 @@ export const generateImages = async (
     aspectRatio: string
 ): Promise<string[]> => {
     let fullPrompt = prompt;
-    if (artisticStyle !== 'Default') fullPrompt += `, in a ${artisticStyle.toLowerCase()} style`;
+
+    // Enhanced prompt for photorealism
+    if (artisticStyle === 'Photorealistic') {
+        fullPrompt += `, photorealistic, hyper-detailed, cinematic lighting, 8k resolution, professional color grading, sharp focus`;
+    } else if (artisticStyle !== 'Default') {
+        fullPrompt += `, in a ${artisticStyle.toLowerCase()} style`;
+    }
+    
     if (colorPalette !== 'Default') fullPrompt += `, with a ${colorPalette.toLowerCase()} color palette`;
     if (composition !== 'Default') fullPrompt += `, ${composition.toLowerCase()}`;
     if (mood !== 'Default') fullPrompt += `, evoking a ${mood.toLowerCase()} mood`;
@@ -117,7 +147,7 @@ export const generateImages = async (
 };
 
 // A short, royalty-free audio clip (raw PCM, 24kHz, 16-bit mono) encoded in base64. This is a valid 5-second synth chord sting.
-const themeMusicBase64 = `//uQRAAAAP8AAABAAAAAAAAAgIAAw+JDxG/I5A7/p2/r7+zv79/h4eLi4uPi5ubi5ufo6Ojo6Ojp6enq6urq6urq6+vr6+vs7Ozt7e3t7e3u7u7u7u7v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v-`;
+const themeMusicBase64 = `//uQRAAAAP8AAABAAAAAAAAAgIAAw+JDxG/I5A7/p2/r7+zv79/h4eLi4uPi5ubi5ufo6Ojo6Ojp6enq6urq6urq6+vr6+vs7Ozt7e3t7e3u7u7u7u7v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v-`;
 
 export const generatePodcastAudio = async (script: string): Promise<Blob> => {
     const tempDiv = document.createElement('div');
@@ -177,29 +207,25 @@ export const generatePodcastScript = async (topic: string): Promise<PodcastScrip
     const prompt = `${BRAND_PERSONA_PROMPT}
 
     Generate a short podcast script about "${topic}". The script should be engaging and conversational, suitable for a 3-4 minute monologue.
+    Incorporate relevant information from the web search results to make the content current and well-informed.
     Provide a catchy title and the script content.
-    Format the output as a JSON object: { "title": "...", "script": "..." }
+    Format the output as a valid JSON object inside a markdown code block: \`\`\`json { "title": "...", "script": "..." } \`\`\`
     The script should be formatted with paragraphs and clearly marked with "Host:" for our text-to-speech engine.`;
 
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-pro',
         contents: prompt,
         config: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    title: { type: Type.STRING },
-                    script: { type: Type.STRING }
-                },
-                required: ['title', 'script']
-            }
+            tools: [{ googleSearch: {} }],
         }
     });
+
+    const sources = extractSources(response);
     try {
-        return JSON.parse(response.text.trim()) as PodcastScript;
+        const script = extractJson(response.text.trim()) as PodcastScript;
+        return { ...script, sources };
     } catch (e) {
-        console.error("Failed to parse JSON for podcast script:", response.text);
+        console.error("Failed to parse JSON for podcast script:", response.text, e);
         throw new Error("Failed to generate podcast script.");
     }
 };
@@ -209,31 +235,25 @@ export const generateBlogArticle = async (topic: string): Promise<BlogArticle> =
     
     Generate a comprehensive blog article on the topic: "${topic}".
     The article should be well-structured, informative, and engaging, embodying our brand voice.
+    Use the web search results to include up-to-date information, statistics, or recent developments related to the topic.
     It should include a compelling title, a main body of text with proper formatting (paragraphs, maybe lists), and a concluding summary.
     Also provide a list of relevant hashtags.
-    Format the output as a JSON object: { "title": "...", "body": "...", "hashtags": ["...", "..."] }`;
+    Format the output as a valid JSON object inside a markdown code block: \`\`\`json { "title": "...", "body": "...", "hashtags": ["...", "..."] } \`\`\``;
 
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-pro',
         contents: prompt,
         config: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    title: { type: Type.STRING },
-                    body: { type: Type.STRING },
-                    hashtags: { type: Type.ARRAY, items: { type: Type.STRING } }
-                },
-                required: ['title', 'body', 'hashtags']
-            }
+            tools: [{ googleSearch: {} }],
         }
     });
 
+    const sources = extractSources(response);
     try {
-        return JSON.parse(response.text.trim()) as BlogArticle;
+        const article = extractJson(response.text.trim()) as BlogArticle;
+        return { ...article, sources };
     } catch (e) {
-        console.error("Failed to parse JSON for blog article:", response.text);
+        console.error("Failed to parse JSON for blog article:", response.text, e);
         throw new Error("Failed to generate blog article.");
     }
 };
@@ -243,28 +263,23 @@ export const generateLinkedInPoll = async (topic: string): Promise<LinkedInPoll>
     
     Create a LinkedIn poll related to the topic: "${topic}".
     The poll should have a thought-provoking question that encourages community discussion, and between 2 to 4 distinct options.
-    Format the output as a JSON object: { "question": "...", "options": ["...", "..."] }`;
+    If relevant, base the question on recent news or trends found in the web search results.
+    Format the output as a valid JSON object inside a markdown code block: \`\`\`json { "question": "...", "options": ["...", "..."] } \`\`\``;
 
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    question: { type: Type.STRING },
-                    options: { type: Type.ARRAY, items: { type: Type.STRING } }
-                },
-                required: ['question', 'options']
-            }
+            tools: [{ googleSearch: {} }],
         }
     });
 
+    const sources = extractSources(response);
     try {
-        return JSON.parse(response.text.trim()) as LinkedInPoll;
+        const poll = extractJson(response.text.trim()) as LinkedInPoll;
+        return { ...poll, sources };
     } catch (e) {
-        console.error("Failed to parse JSON for poll:", response.text);
+        console.error("Failed to parse JSON for poll:", response.text, e);
         throw new Error("Failed to generate LinkedIn poll.");
     }
 };
@@ -274,39 +289,25 @@ export const generateCarousel = async (topic: string): Promise<CarouselPresentat
     
     Create a LinkedIn-style carousel presentation about "${topic}".
     The carousel should have a main title and a series of 5 to 7 slides.
+    Use data, quotes, or key facts from the web search results to make the slides more impactful.
     Each slide needs a short, punchy title and a small amount of content (1-3 sentences or a short bullet list).
     The last slide should be a community-focused call to action.
-    Format the output as a JSON object: { "title": "...", "slides": [{ "title": "...", "content": "..." }, ...] }`;
+    Format the output as a valid JSON object inside a markdown code block: \`\`\`json { "title": "...", "slides": [{ "title": "...", "content": "..." }, ...] } \`\`\``;
 
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-pro',
         contents: prompt,
         config: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    title: { type: Type.STRING },
-                    slides: {
-                        type: Type.ARRAY,
-                        items: {
-                            type: Type.OBJECT,
-                            properties: {
-                                title: { type: Type.STRING },
-                                content: { type: Type.STRING }
-                            },
-                            required: ['title', 'content']
-                        }
-                    }
-                },
-                required: ['title', 'slides']
-            }
+            tools: [{ googleSearch: {} }],
         }
     });
+
+    const sources = extractSources(response);
     try {
-        return JSON.parse(response.text.trim()) as CarouselPresentation;
+        const carousel = extractJson(response.text.trim()) as CarouselPresentation;
+        return { ...carousel, sources };
     } catch (e) {
-        console.error("Failed to parse JSON for carousel:", response.text);
+        console.error("Failed to parse JSON for carousel:", response.text, e);
         throw new Error("Failed to generate carousel.");
     }
 };
@@ -328,12 +329,7 @@ export const generateResearchReport = async (topic: string): Promise<ResearchRep
     });
 
     const text = response.text;
-    const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map(chunk => ({
-        // @ts-ignore
-        title: chunk.web?.title || 'Unknown Source',
-        // @ts-ignore
-        uri: chunk.web?.uri || '',
-    })).filter(source => source.uri) || [];
+    const sources = extractSources(response);
     
     // A simple heuristic to extract title from the response text
     const firstLine = text.split('\n')[0] || '';

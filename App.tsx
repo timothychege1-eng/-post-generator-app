@@ -519,6 +519,25 @@ const App: React.FC = () => {
         setYoutubeError(null);
     };
 
+    const allSources = useMemo(() => {
+        if (!generatedContent) return [];
+        const sources = new Map<string, { title: string; uri: string }>();
+        const addSources = (sourceArray?: { title: string; uri: string }[]) => {
+            sourceArray?.forEach(s => {
+                if (s.uri && !sources.has(s.uri)) {
+                    sources.set(s.uri, s);
+                }
+            });
+        };
+        addSources(generatedContent.posts.sources);
+        addSources(generatedContent.posts.podcastScript?.sources);
+        addSources(generatedContent.posts.blogArticle?.sources);
+        addSources(generatedContent.posts.linkedinPoll?.sources);
+        addSources(generatedContent.posts.carouselPresentation?.sources);
+        addSources(generatedContent.posts.researchReport?.sources);
+        return Array.from(sources.values());
+    }, [generatedContent]);
+
     const PostCard: React.FC<{
         title: string;
         icon: React.ReactNode;
@@ -815,15 +834,21 @@ const App: React.FC = () => {
                                     <PostCard title="Research Report" icon={<BookOpenIcon />}>
                                         <h4 className="text-xl font-bold mb-2 text-white">{generatedContent.posts.researchReport.title}</h4>
                                         <div className="prose prose-invert max-w-none mb-6" dangerouslySetInnerHTML={{ __html: generatedContent.posts.researchReport.report.replace(/\n/g, '<br/>') }} />
-                                        <h5 className="font-bold text-slate-300 mt-6 mb-2 border-t border-slate-700 pt-4">Sources</h5>
-                                        <ul className="list-disc list-inside space-y-2">
-                                            {generatedContent.posts.researchReport.sources.map((source, i) =>(
+                                    </PostCard>
+                                )}
+
+                                {allSources.length > 0 && (
+                                    <div className="bg-slate-800/50 rounded-lg shadow-lg p-6 border border-slate-700">
+                                        <h3 className="text-lg font-bold text-white mb-2">Sources</h3>
+                                        <p className="text-sm text-slate-400 mb-4">The following sources were consulted to generate the content above.</p>
+                                        <ul className="list-disc list-inside space-y-2 text-sm">
+                                            {allSources.map((source, i) =>(
                                                 <li key={i}>
-                                                    <a href={source.uri} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">{source.title}</a>
+                                                    <a href={source.uri} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline break-all">{source.title}</a>
                                                 </li>
                                             ))}
                                         </ul>
-                                    </PostCard>
+                                    </div>
                                 )}
                             </div>
 
