@@ -18,7 +18,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ initialContent, onConte
         <button 
             type="button" 
             onClick={onClick} 
-            className="p-2 rounded hover:bg-slate-700 text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+            className="p-2 rounded hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-primary)]" 
             aria-label={label}
             title={label}
         >
@@ -27,8 +27,8 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ initialContent, onConte
     );
 
     return (
-        <div className="bg-slate-900 border border-slate-700 rounded-md focus-within:ring-2 focus-within:ring-blue-500 transition-shadow">
-            <div className="flex items-center p-2 border-b border-slate-700 gap-1 flex-wrap">
+        <div className="bg-[var(--color-bg-primary)] border border-[var(--color-border-primary)] rounded-md focus-within:ring-2 focus-within:ring-[var(--color-accent-primary)] transition-shadow">
+            <div className="flex items-center p-2 border-b border-[var(--color-border-primary)] gap-1 flex-wrap">
                 <ToolbarButton onClick={() => handleCommand('bold')} label="Bold"><BoldIcon /></ToolbarButton>
                 <ToolbarButton onClick={() => handleCommand('italic')} label="Italic"><ItalicIcon /></ToolbarButton>
                 <ToolbarButton onClick={() => handleCommand('insertUnorderedList')} label="Unordered List"><ListUlIcon /></ToolbarButton>
@@ -38,7 +38,7 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({ initialContent, onConte
                 ref={editorRef}
                 contentEditable={true}
                 suppressContentEditableWarning={true}
-                className="prose prose-invert max-w-none text-slate-200 p-4 min-h-[200px] focus:outline-none"
+                className="prose prose-invert max-w-none text-[var(--color-text-primary)] p-4 min-h-[200px] focus:outline-none"
                 onInput={(e) => onContentChange(e.currentTarget.innerHTML)}
                 dangerouslySetInnerHTML={{ __html: initialContent }}
             >

@@ -24,15 +24,15 @@ const ScheduledPostsModal: React.FC<ScheduledPostsModalProps> = ({ isOpen, onClo
             <div className="space-y-4">
                 {scheduledPosts.length > 0 ? (
                     scheduledPosts.map((post) => (
-                        <div key={post.id} className="bg-slate-700/50 p-4 rounded-lg flex items-center justify-between gap-4">
+                        <div key={post.id} className="bg-[var(--color-bg-tertiary)]/50 p-4 rounded-lg flex items-center justify-between gap-4 border border-[var(--color-border-secondary)]">
                             <div className="flex items-center gap-4 flex-grow min-w-0">
                                 {post.platform === 'LinkedIn' ? <LinkedInIcon /> : <XIcon />}
                                 <div className="flex-grow min-w-0">
-                                    <p className="font-bold text-white truncate" title={post.topic}>{post.topic}</p>
-                                    <p className="text-sm text-slate-400 truncate" title={getSnippet(post)}>
+                                    <p className="font-bold text-[var(--color-text-primary)] truncate" title={post.topic}>{post.topic}</p>
+                                    <p className="text-sm text-[var(--color-text-secondary)] truncate" title={getSnippet(post)}>
                                         {getSnippet(post)}
                                     </p>
-                                    <p className="text-sm text-purple-300 flex items-center gap-1.5 mt-1">
+                                    <p className="text-sm text-[var(--color-text-accent)] flex items-center gap-1.5 mt-1">
                                         <ClockIcon />
                                         {new Date(post.scheduledAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
                                     </p>
@@ -41,7 +41,7 @@ const ScheduledPostsModal: React.FC<ScheduledPostsModalProps> = ({ isOpen, onClo
                             <div className="flex-shrink-0">
                                 <button 
                                     onClick={() => onUnschedule(post.id)}
-                                    className="bg-red-600 hover:bg-red-700 text-white p-2 rounded-md transition-colors"
+                                    className="bg-[var(--color-accent-danger)] hover:bg-[var(--color-accent-danger-hover)] text-white p-2 rounded-md transition-colors"
                                     aria-label="Unschedule post"
                                 >
                                     <TrashIcon />
@@ -50,7 +50,7 @@ const ScheduledPostsModal: React.FC<ScheduledPostsModalProps> = ({ isOpen, onClo
                         </div>
                     ))
                 ) : (
-                    <div className="text-center text-slate-400 py-8">
+                    <div className="text-center text-[var(--color-text-secondary)] py-8">
                         <p>You have no posts scheduled yet.</p>
                         <p className="text-sm mt-2">Use the "Schedule" button on a generated post to add it to your calendar.</p>
                     </div>

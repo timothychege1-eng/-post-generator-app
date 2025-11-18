@@ -24,6 +24,9 @@ import Modal from './components/Modal';
 import RichTextEditor from './components/RichTextEditor';
 import SavedPostsModal from './components/SavedPostsModal';
 import ScheduledPostsModal from './components/ScheduledPostsModal';
+import ThemeSwitcher from './components/ThemeSwitcher';
+
+type Theme = 'slate' | 'savanna' | 'nairobi';
 
 const CopyButton: React.FC<{ text: string }> = ({ text }) => {
     const [copied, setCopied] = useState(false);
@@ -70,7 +73,7 @@ const CopyButton: React.FC<{ text: string }> = ({ text }) => {
     return (
         <button
             onClick={handleCopy}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-md transition-colors absolute top-2 right-2"
+            className="p-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)] rounded-md transition-colors absolute top-2 right-2"
             aria-label="Copy to clipboard"
         >
             {copied ? <CheckIcon /> : <CopyIcon />}
@@ -146,8 +149,21 @@ const App: React.FC = () => {
 
     // Carousel state
     const [currentSlide, setCurrentSlide] = useState(0);
+    
+    const [theme, setThemeState] = useState<Theme>('slate');
 
     useEffect(() => {
+        // This effect runs once on mount to set the initial theme from localStorage
+        const savedTheme = localStorage.getItem('app-theme') as Theme | null;
+        if (savedTheme && ['slate', 'savanna', 'nairobi'].includes(savedTheme)) {
+            setThemeState(savedTheme);
+            document.documentElement.className = `theme-${savedTheme}`;
+        } else {
+            // Set default if nothing is saved or value is invalid
+            setThemeState('slate');
+            document.documentElement.className = 'theme-slate';
+        }
+        
         try {
             const storedPosts = localStorage.getItem('viralPostGeneratorSaved');
             if (storedPosts) setSavedPosts(JSON.parse(storedPosts));
@@ -166,6 +182,12 @@ const App: React.FC = () => {
             }
         };
     }, []);
+
+    const setTheme = (newTheme: Theme) => {
+        setThemeState(newTheme);
+        localStorage.setItem('app-theme', newTheme);
+        document.documentElement.className = `theme-${newTheme}`;
+    };
 
     const hasResults = !!generatedContent;
 
@@ -545,26 +567,26 @@ const App: React.FC = () => {
         onEdit?: () => void;
         onSchedule?: () => void;
     }> = ({ title, icon, children, onEdit, onSchedule }) => (
-        <div className="bg-slate-800/50 rounded-lg shadow-lg overflow-hidden relative border border-slate-700">
-            <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+        <div className="bg-[var(--color-bg-secondary)]/50 rounded-lg shadow-lg overflow-hidden relative border border-[var(--color-border-primary)]">
+            <div className="p-4 border-b border-[var(--color-border-primary)] flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <span className="text-blue-400">{icon}</span>
-                    <h3 className="text-lg font-bold text-white">{title}</h3>
+                    <span className="text-[var(--color-text-accent)]">{icon}</span>
+                    <h3 className="text-lg font-bold text-[var(--color-text-primary)]">{title}</h3>
                 </div>
                 <div className="flex items-center gap-2">
                     {onEdit && (
-                         <button onClick={onEdit} className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-md transition-colors" aria-label={`Edit ${title}`}>
+                         <button onClick={onEdit} className="p-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)] rounded-md transition-colors" aria-label={`Edit ${title}`}>
                             <EditIcon />
                         </button>
                     )}
                     {onSchedule && (
-                         <button onClick={onSchedule} className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-md transition-colors" aria-label={`Schedule ${title}`}>
+                         <button onClick={onSchedule} className="p-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-bg-tertiary)] rounded-md transition-colors" aria-label={`Schedule ${title}`}>
                             <ClockIcon />
                         </button>
                     )}
                 </div>
             </div>
-            <div className="p-6 text-slate-300">
+            <div className="p-6 text-[var(--color-text-secondary)]">
                 {children}
             </div>
         </div>
@@ -581,9 +603,9 @@ const App: React.FC = () => {
             onClick={onClick}
             disabled={isGenerating}
             className={`w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-colors duration-200 ease-in-out
-                ${isGenerating ? 'bg-slate-600 text-slate-400 cursor-not-allowed' :
-                 generatedContent ? 'bg-green-600/20 text-green-300 border border-green-500/50 hover:bg-green-600/40' :
-                 'bg-blue-600/20 text-blue-300 border border-blue-500/50 hover:bg-blue-600/40'
+                ${isGenerating ? 'bg-[var(--color-bg-interactive)] text-[var(--color-text-secondary)] cursor-not-allowed' :
+                 generatedContent ? 'bg-[var(--color-accent-success)]/20 text-green-300 border border-green-500/50 hover:bg-[var(--color-accent-success)]/40' :
+                 'bg-[var(--color-accent-primary)]/20 text-[var(--color-text-accent)] border border-[var(--color-accent-primary)]/50 hover:bg-[var(--color-accent-primary)]/40'
                 }`}
         >
             {isGenerating ? <LoadingSpinner /> : icon}
@@ -592,49 +614,52 @@ const App: React.FC = () => {
     );
 
     return (
-        <div className="min-h-screen bg-slate-900 text-slate-200 font-sans">
-            <header className="bg-slate-900/70 backdrop-blur-lg sticky top-0 z-40 border-b border-slate-800">
+        <div className="min-h-screen bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] font-sans">
+            <header className="bg-[var(--color-bg-primary)]/70 backdrop-blur-lg sticky top-0 z-40 border-b border-[var(--color-bg-secondary)]">
                 <div className="container mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
                     <div className="flex items-center gap-3">
-                         <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400">
+                         <div className="p-2 bg-[var(--color-accent-primary)]/10 rounded-lg text-[var(--color-text-accent)]">
                              <SparklesIcon />
                          </div>
-                        <h1 className="text-xl font-bold text-white">Kenya Data & AI Society Content Hub</h1>
+                        <h1 className="text-xl font-bold text-[var(--color-text-primary)]">Kenya Data & AI Society Content Hub</h1>
                     </div>
-                     <div className="flex items-center gap-2">
-                        <button 
-                            onClick={() => setIsSavedPostsModalOpen(true)}
-                            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-2 px-4 rounded-md transition-colors text-sm"
-                        >
-                            <SaveIcon /> Saved ({savedPosts.length})
-                        </button>
-                         <button 
-                            onClick={() => setIsScheduledPostsModalOpen(true)}
-                            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-2 px-4 rounded-md transition-colors text-sm"
-                        >
-                            <ClockIcon /> Scheduled ({scheduledPosts.length})
-                        </button>
+                     <div className="flex items-center gap-4">
+                        <ThemeSwitcher currentTheme={theme} setTheme={setTheme} />
+                        <div className="flex items-center gap-2">
+                            <button 
+                                onClick={() => setIsSavedPostsModalOpen(true)}
+                                className="flex items-center gap-2 bg-[var(--color-bg-secondary)] hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] font-semibold py-2 px-4 rounded-md transition-colors text-sm"
+                            >
+                                <SaveIcon /> Saved ({savedPosts.length})
+                            </button>
+                            <button 
+                                onClick={() => setIsScheduledPostsModalOpen(true)}
+                                className="flex items-center gap-2 bg-[var(--color-bg-secondary)] hover:bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] font-semibold py-2 px-4 rounded-md transition-colors text-sm"
+                            >
+                                <ClockIcon /> Scheduled ({scheduledPosts.length})
+                            </button>
+                        </div>
                     </div>
                 </div>
             </header>
 
             <main className="container mx-auto p-4 md:p-8">
-                <div className="max-w-3xl mx-auto bg-slate-800/50 p-6 md:p-8 rounded-2xl shadow-2xl border border-slate-700/50">
+                <div className="max-w-3xl mx-auto bg-[var(--color-bg-secondary)]/50 p-6 md:p-8 rounded-2xl shadow-2xl border border-[var(--color-border-primary)]/50">
                     <div className="flex items-center gap-3 mb-4">
-                        <div className="p-3 bg-blue-500/10 rounded-lg text-blue-400">
+                        <div className="p-3 bg-[var(--color-accent-primary)]/10 rounded-lg text-[var(--color-text-accent)]">
                             <PlusCircleIcon />
                         </div>
-                        <h2 className="text-2xl font-bold text-white">Create New Content</h2>
+                        <h2 className="text-2xl font-bold text-[var(--color-text-primary)]">Create New Content</h2>
                     </div>
-                    <p className="text-slate-400 mb-6">
+                    <p className="text-[var(--color-text-secondary)] mb-6">
                         Start by entering a topic, a central theme, or even a YouTube video URL. The AI will generate a variety of content for you to use.
                     </p>
 
                     {error && <div className="bg-red-500/10 border border-red-500/30 text-red-300 p-4 rounded-md mb-6">{error}</div>}
 
                     <div className="space-y-4">
-                        <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
-                            <label htmlFor="topic-input" className="block text-sm font-medium text-slate-300 mb-2">Topic or Theme</label>
+                        <div className="bg-[var(--color-bg-primary)]/50 p-4 rounded-lg border border-[var(--color-border-primary)]">
+                            <label htmlFor="topic-input" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Topic or Theme</label>
                             <form onSubmit={(e) => { e.preventDefault(); handleGenerate(topic); }} className="flex flex-col sm:flex-row gap-2">
                                 <input
                                     id="topic-input"
@@ -642,12 +667,12 @@ const App: React.FC = () => {
                                     value={topic}
                                     onChange={(e) => setTopic(e.target.value)}
                                     placeholder="e.g., The Future of AI in Kenyan Agriculture"
-                                    className="flex-grow bg-slate-800 border border-slate-600 rounded-md px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+                                    className="flex-grow bg-[var(--color-bg-secondary)] border border-[var(--color-border-secondary)] rounded-md px-4 py-2.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-primary)] transition-shadow"
                                 />
                                 <button
                                     type="submit"
                                     disabled={isLoading || !topic.trim()}
-                                    className="flex items-center justify-center bg-blue-600 text-white font-semibold py-2.5 px-6 rounded-md hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors"
+                                    className="flex items-center justify-center bg-[var(--color-accent-primary)] text-white font-semibold py-2.5 px-6 rounded-md hover:bg-[var(--color-accent-primary-hover)] disabled:bg-[var(--color-bg-interactive)] disabled:cursor-not-allowed transition-colors"
                                 >
                                     {isLoading ? <LoadingSpinner /> : <SparklesIcon />}
                                     <span className="ml-2">{isLoading ? 'Generating...' : 'Generate'}</span>
@@ -656,7 +681,7 @@ const App: React.FC = () => {
                                     type="button"
                                     onClick={handleSuggestTopics}
                                     disabled={isSuggesting || !topic.trim()}
-                                    className="flex items-center justify-center bg-purple-600 text-white font-semibold py-2.5 px-6 rounded-md hover:bg-purple-700 disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors"
+                                    className="flex items-center justify-center bg-[var(--color-accent-secondary)] text-white font-semibold py-2.5 px-6 rounded-md hover:bg-[var(--color-accent-secondary-hover)] disabled:bg-[var(--color-bg-interactive)] disabled:cursor-not-allowed transition-colors"
                                 >
                                     {isSuggesting ? <LoadingSpinner /> : '💡'}
                                     <span className="ml-2">{isSuggesting ? 'Suggesting...' : 'Suggest Topics'}</span>
@@ -664,8 +689,8 @@ const App: React.FC = () => {
                             </form>
                         </div>
 
-                         <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700">
-                             <label htmlFor="youtube-url-input" className="block text-sm font-medium text-slate-300 mb-2">Or, Analyze a YouTube Video</label>
+                         <div className="bg-[var(--color-bg-primary)]/50 p-4 rounded-lg border border-[var(--color-border-primary)]">
+                             <label htmlFor="youtube-url-input" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Or, Analyze a YouTube Video</label>
                              <form onSubmit={(e) => { e.preventDefault(); handleAnalyzeVideo(); }} className="flex flex-col sm:flex-row gap-2">
                                  <input
                                      id="youtube-url-input"
@@ -673,12 +698,12 @@ const App: React.FC = () => {
                                      value={youtubeUrl}
                                      onChange={(e) => setYoutubeUrl(e.target.value)}
                                      placeholder="e.g., https://www.youtube.com/watch?v=..."
-                                     className="flex-grow bg-slate-800 border border-slate-600 rounded-md px-4 py-2.5 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+                                     className="flex-grow bg-[var(--color-bg-secondary)] border border-[var(--color-border-secondary)] rounded-md px-4 py-2.5 text-[var(--color-text-primary)] placeholder-[var(--color-text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-primary)] transition-shadow"
                                  />
                                  <button
                                      type="submit"
                                      disabled={isAnalyzingVideo || !youtubeUrl.trim()}
-                                     className="flex items-center justify-center bg-red-600 text-white font-semibold py-2.5 px-6 rounded-md hover:bg-red-700 disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors"
+                                     className="flex items-center justify-center bg-[var(--color-accent-danger)] text-white font-semibold py-2.5 px-6 rounded-md hover:bg-[var(--color-accent-danger-hover)] disabled:bg-[var(--color-bg-interactive)] disabled:cursor-not-allowed transition-colors"
                                  >
                                      {isAnalyzingVideo ? <LoadingSpinner /> : <VideoCameraIcon/>}
                                      <span className="ml-2">{isAnalyzingVideo ? 'Analyzing...' : 'Analyze Video'}</span>
@@ -695,11 +720,11 @@ const App: React.FC = () => {
                         <h3 className="text-xl font-bold mb-4">Topic Suggestions</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {(topicSuggestions || youtubeSuggestions)?.map((suggestion, index) => (
-                                <div key={index} className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 hover:bg-slate-800 transition-colors">
-                                    <p className="font-semibold text-blue-300">{(suggestion as TopicSuggestion).day || `Suggestion ${index + 1}`}</p>
-                                    <p className="text-slate-300 mt-1">{(suggestion as any).topic}</p>
-                                    {(suggestion as YoutubeTopicSuggestion).description && <p className="text-sm text-slate-400 mt-2">{(suggestion as YoutubeTopicSuggestion).description}</p>}
-                                    <button onClick={() => handleGenerate((suggestion as any).topic)} className="mt-4 text-sm bg-blue-600/50 hover:bg-blue-600 text-white font-semibold py-1 px-3 rounded-full transition-colors">
+                                <div key={index} className="bg-[var(--color-bg-secondary)]/50 p-4 rounded-lg border border-[var(--color-border-primary)]/50 hover:bg-[var(--color-bg-secondary)] transition-colors">
+                                    <p className="font-semibold text-[var(--color-text-accent)]">{(suggestion as TopicSuggestion).day || `Suggestion ${index + 1}`}</p>
+                                    <p className="text-[var(--color-text-primary)] mt-1">{(suggestion as any).topic}</p>
+                                    {(suggestion as YoutubeTopicSuggestion).description && <p className="text-sm text-[var(--color-text-secondary)] mt-2">{(suggestion as YoutubeTopicSuggestion).description}</p>}
+                                    <button onClick={() => handleGenerate((suggestion as any).topic)} className="mt-4 text-sm bg-[var(--color-accent-primary)]/50 hover:bg-[var(--color-accent-primary)] text-white font-semibold py-1 px-3 rounded-full transition-colors">
                                         Generate content for this topic
                                     </button>
                                 </div>
@@ -713,20 +738,20 @@ const App: React.FC = () => {
                     <div id="results" className="mt-12 max-w-5xl mx-auto">
                         <div className="flex justify-between items-center mb-6">
                             <div>
-                                <h2 className="text-3xl font-bold text-white">Generated Content</h2>
-                                <p className="text-slate-400 mt-1">Topic: <span className="font-semibold text-slate-300">{activeTopic}</span></p>
+                                <h2 className="text-3xl font-bold text-[var(--color-text-primary)]">Generated Content</h2>
+                                <p className="text-[var(--color-text-secondary)] mt-1">Topic: <span className="font-semibold text-[var(--color-text-primary)]">{activeTopic}</span></p>
                             </div>
                             <div className="flex gap-2">
                                 <button
                                     onClick={handleSave}
-                                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-md transition-colors"
+                                    className="flex items-center gap-2 bg-[var(--color-accent-success)] hover:bg-[var(--color-accent-success-hover)] text-white font-semibold py-2 px-4 rounded-md transition-colors"
                                 >
                                     {saveSuccess ? <CheckIcon/> : <SaveIcon />}
                                     {saveSuccess ? 'Saved!' : 'Save This Result'}
                                 </button>
                                 <button
                                     onClick={resetState}
-                                    className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-semibold py-2 px-4 rounded-md transition-colors"
+                                    className="flex items-center gap-2 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-interactive)] text-[var(--color-text-secondary)] font-semibold py-2 px-4 rounded-md transition-colors"
                                 >
                                     <ResetIcon />
                                     Start Over
@@ -739,11 +764,11 @@ const App: React.FC = () => {
                             <div className="lg:col-span-3 space-y-8">
                                 {generatedContent?.posts.linkedinPost && (
                                     <PostCard title="LinkedIn Post" icon={<LinkedInIcon />} onEdit={() => handleOpenEditModal('linkedin')} onSchedule={() => setSchedulingPost('linkedin')}>
-                                        <h4 className="text-xl font-bold mb-2 text-white">{generatedContent.posts.linkedinPost.title}</h4>
+                                        <h4 className="text-xl font-bold mb-2 text-[var(--color-text-primary)]">{generatedContent.posts.linkedinPost.title}</h4>
                                         <div className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: linkedinBodyHtml || '' }} />
                                         <div className="mt-4 flex flex-wrap gap-2">
                                             {generatedContent.posts.linkedinPost.hashtags.map((tag, i) => (
-                                                <span key={i} className="text-sm bg-slate-700 text-blue-300 px-2 py-1 rounded">#{tag}</span>
+                                                <span key={i} className="text-sm bg-[var(--color-bg-tertiary)] text-[var(--color-text-accent)] px-2 py-1 rounded">#{tag}</span>
                                             ))}
                                         </div>
                                         <CopyButton text={generatedContent.posts.linkedinPost.body} />
@@ -754,7 +779,7 @@ const App: React.FC = () => {
                                         <div className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: xBodyHtml || '' }} />
                                         <div className="mt-4 flex flex-wrap gap-2">
                                             {generatedContent.posts.xPost.hashtags.map((tag, i) => (
-                                                <span key={i} className="text-sm bg-slate-700 text-blue-300 px-2 py-1 rounded">#{tag}</span>
+                                                <span key={i} className="text-sm bg-[var(--color-bg-tertiary)] text-[var(--color-text-accent)] px-2 py-1 rounded">#{tag}</span>
                                             ))}
                                         </div>
                                          <CopyButton text={generatedContent.posts.xPost.body} />
@@ -762,7 +787,7 @@ const App: React.FC = () => {
                                 )}
                                 {generatedContent?.posts.podcastScript && (
                                      <PostCard title="Podcast" icon={<MicrophoneIcon />} onEdit={() => handleOpenEditModal('podcast')}>
-                                        <h4 className="text-xl font-bold mb-2 text-white">{generatedContent.posts.podcastScript.title}</h4>
+                                        <h4 className="text-xl font-bold mb-2 text-[var(--color-text-primary)]">{generatedContent.posts.podcastScript.title}</h4>
                                         <div className="prose prose-invert max-w-none mb-4" dangerouslySetInnerHTML={{ __html: generatedContent.posts.podcastScript.script.replace(/\n/g, '<br/>') }} />
                                         
                                         {audioError && <p className="text-red-400 text-sm mt-4">{audioError}</p>}
@@ -774,7 +799,7 @@ const App: React.FC = () => {
                                         <button 
                                             onClick={handleGeneratePodcast} 
                                             disabled={isGeneratingAudio}
-                                            className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-purple-600 hover:bg-purple-700 text-white disabled:bg-slate-600"
+                                            className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-[var(--color-accent-secondary)] hover:bg-[var(--color-accent-secondary-hover)] text-white disabled:bg-[var(--color-bg-interactive)]"
                                         >
                                             {isGeneratingAudio ? <LoadingSpinner/> : <MicrophoneIcon/>}
                                             {isGeneratingAudio ? 'Generating Audio...' : audioUrl ? 'Regenerate Audio' : 'Generate Audio'}
@@ -783,21 +808,21 @@ const App: React.FC = () => {
                                 )}
                                 {generatedContent?.posts.blogArticle && (
                                      <PostCard title="Blog Article" icon={<DocumentTextIcon />} onEdit={() => handleOpenEditModal('blog')}>
-                                        <h4 className="text-xl font-bold mb-2 text-white">{generatedContent.posts.blogArticle.title}</h4>
+                                        <h4 className="text-xl font-bold mb-2 text-[var(--color-text-primary)]">{generatedContent.posts.blogArticle.title}</h4>
                                         <div className="prose prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: blogBodyHtml || '' }} />
                                         <div className="mt-4 flex flex-wrap gap-2">
                                             {generatedContent.posts.blogArticle.hashtags.map((tag, i) => (
-                                                <span key={i} className="text-sm bg-slate-700 text-blue-300 px-2 py-1 rounded">#{tag}</span>
+                                                <span key={i} className="text-sm bg-[var(--color-bg-tertiary)] text-[var(--color-text-accent)] px-2 py-1 rounded">#{tag}</span>
                                             ))}
                                         </div>
                                     </PostCard>
                                 )}
                                 {generatedContent?.posts.linkedinPoll && (
                                     <PostCard title="LinkedIn Poll" icon={<ChartBarIcon />} onEdit={() => handleOpenEditModal('poll')}>
-                                        <p className="font-semibold text-white mb-4">{generatedContent.posts.linkedinPoll.question}</p>
+                                        <p className="font-semibold text-[var(--color-text-primary)] mb-4">{generatedContent.posts.linkedinPoll.question}</p>
                                         <div className="space-y-2">
                                             {generatedContent.posts.linkedinPoll.options.map((option, i) => (
-                                                <div key={i} className="bg-slate-700/50 p-3 rounded-md border border-slate-600">
+                                                <div key={i} className="bg-[var(--color-bg-tertiary)]/50 p-3 rounded-md border border-[var(--color-border-secondary)]">
                                                     {option}
                                                 </div>
                                             ))}
@@ -806,24 +831,24 @@ const App: React.FC = () => {
                                 )}
                                 {generatedContent?.posts.carouselPresentation && (
                                     <PostCard title="Carousel Presentation" icon={<CollectionIcon />} onEdit={() => handleOpenEditModal('carousel')}>
-                                        <h4 className="text-xl font-bold mb-4 text-white">{generatedContent.posts.carouselPresentation.title}</h4>
-                                        <div className="bg-slate-900/50 p-6 rounded-lg min-h-[200px] flex flex-col justify-center border border-slate-700">
-                                             <h5 className="text-lg font-bold text-blue-300 mb-2">{generatedContent.posts.carouselPresentation.slides[currentSlide].title}</h5>
+                                        <h4 className="text-xl font-bold mb-4 text-[var(--color-text-primary)]">{generatedContent.posts.carouselPresentation.title}</h4>
+                                        <div className="bg-[var(--color-bg-primary)]/50 p-6 rounded-lg min-h-[200px] flex flex-col justify-center border border-[var(--color-border-primary)]">
+                                             <h5 className="text-lg font-bold text-[var(--color-text-accent)] mb-2">{generatedContent.posts.carouselPresentation.slides[currentSlide].title}</h5>
                                              <p>{generatedContent.posts.carouselPresentation.slides[currentSlide].content}</p>
                                         </div>
                                         <div className="flex justify-between items-center mt-4">
                                             <button 
                                                 onClick={() => setCurrentSlide(prev => Math.max(0, prev - 1))}
                                                 disabled={currentSlide === 0}
-                                                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className="px-4 py-2 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-interactive)] rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
                                                 Previous
                                             </button>
-                                            <span className="text-sm text-slate-400">{currentSlide + 1} / {generatedContent.posts.carouselPresentation.slides.length}</span>
+                                            <span className="text-sm text-[var(--color-text-secondary)]">{currentSlide + 1} / {generatedContent.posts.carouselPresentation.slides.length}</span>
                                             <button 
                                                 onClick={() => setCurrentSlide(prev => Math.min(generatedContent.posts.carouselPresentation.slides.length - 1, prev + 1))}
                                                 disabled={currentSlide === generatedContent.posts.carouselPresentation.slides.length - 1}
-                                                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                                className="px-4 py-2 bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-interactive)] rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
                                                 Next
                                             </button>
@@ -832,19 +857,19 @@ const App: React.FC = () => {
                                 )}
                                 {generatedContent?.posts.researchReport && (
                                     <PostCard title="Research Report" icon={<BookOpenIcon />}>
-                                        <h4 className="text-xl font-bold mb-2 text-white">{generatedContent.posts.researchReport.title}</h4>
+                                        <h4 className="text-xl font-bold mb-2 text-[var(--color-text-primary)]">{generatedContent.posts.researchReport.title}</h4>
                                         <div className="prose prose-invert max-w-none mb-6" dangerouslySetInnerHTML={{ __html: generatedContent.posts.researchReport.report.replace(/\n/g, '<br/>') }} />
                                     </PostCard>
                                 )}
 
                                 {allSources.length > 0 && (
-                                    <div className="bg-slate-800/50 rounded-lg shadow-lg p-6 border border-slate-700">
-                                        <h3 className="text-lg font-bold text-white mb-2">Sources</h3>
-                                        <p className="text-sm text-slate-400 mb-4">The following sources were consulted to generate the content above.</p>
+                                    <div className="bg-[var(--color-bg-secondary)]/50 rounded-lg shadow-lg p-6 border border-[var(--color-border-primary)]">
+                                        <h3 className="text-lg font-bold text-[var(--color-text-primary)] mb-2">Sources</h3>
+                                        <p className="text-sm text-[var(--color-text-secondary)] mb-4">The following sources were consulted to generate the content above.</p>
                                         <ul className="list-disc list-inside space-y-2 text-sm">
                                             {allSources.map((source, i) =>(
                                                 <li key={i}>
-                                                    <a href={source.uri} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline break-all">{source.title}</a>
+                                                    <a href={source.uri} target="_blank" rel="noopener noreferrer" className="text-[var(--color-text-accent)] hover:underline break-all">{source.title}</a>
                                                 </li>
                                             ))}
                                         </ul>
@@ -855,9 +880,9 @@ const App: React.FC = () => {
                              {/* Sidebar Column */}
                             <div className="lg:col-span-2 space-y-6 lg:sticky top-24 self-start">
                                 {/* Image Generation Card */}
-                                <div className="bg-slate-800/50 p-6 rounded-lg shadow-lg border border-slate-700">
-                                    <h3 className="text-lg font-bold text-white mb-4">Generated Image</h3>
-                                    <div className="aspect-video bg-slate-700/50 rounded-md flex items-center justify-center overflow-hidden border border-slate-600">
+                                <div className="bg-[var(--color-bg-secondary)]/50 p-6 rounded-lg shadow-lg border border-[var(--color-border-primary)]">
+                                    <h3 className="text-lg font-bold text-[var(--color-text-primary)] mb-4">Generated Image</h3>
+                                    <div className="aspect-video bg-[var(--color-bg-tertiary)]/50 rounded-md flex items-center justify-center overflow-hidden border border-[var(--color-border-secondary)]">
                                         {isRegeneratingImage ? (
                                             <LoadingSpinner />
                                         ) : generatedContent?.images.length > 0 ? (
@@ -874,14 +899,14 @@ const App: React.FC = () => {
                                         <a 
                                             href={`data:image/jpeg;base64,${generatedContent.images[selectedImageIndex]}`} 
                                             download={`${activeTopic.replace(/\s+/g, '_')}_image.jpg`}
-                                            className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-green-600 hover:bg-green-700 text-white"
+                                            className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-[var(--color-accent-success)] hover:bg-[var(--color-accent-success-hover)] text-white"
                                         >
                                             <DownloadIcon /> Download Image
                                         </a>
                                     )}
 
                                     <div className="mt-4">
-                                        <label className="text-sm font-medium text-slate-300">Image Prompt</label>
+                                        <label className="text-sm font-medium text-[var(--color-text-secondary)]">Image Prompt</label>
                                         <div className="mt-1 relative">
                                             <textarea
                                                 value={editedPrompt}
@@ -889,7 +914,7 @@ const App: React.FC = () => {
                                                     setEditedPrompt(e.target.value);
                                                     if (!isEditingPrompt) setIsEditingPrompt(true);
                                                 }}
-                                                className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-sm text-slate-300 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border-secondary)] rounded-md p-2 text-sm text-[var(--color-text-secondary)] resize-none focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-primary)]"
                                                 rows={4}
                                             />
                                             <CopyButton text={editedPrompt}/>
@@ -898,11 +923,11 @@ const App: React.FC = () => {
 
                                     {/* Advanced Image Options */}
                                     <details className="mt-4">
-                                        <summary className="cursor-pointer text-sm font-semibold text-slate-400 hover:text-white">Advanced Options</summary>
+                                        <summary className="cursor-pointer text-sm font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]">Advanced Options</summary>
                                         <div className="grid grid-cols-2 gap-4 mt-2">
                                             <div>
-                                                <label htmlFor="style" className="text-xs text-slate-400 block mb-1">Artistic Style</label>
-                                                <select id="style" value={artisticStyle} onChange={e => setArtisticStyle(e.target.value)} className="w-full bg-slate-700 text-sm p-2 rounded-md border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                                <label htmlFor="style" className="text-xs text-[var(--color-text-secondary)] block mb-1">Artistic Style</label>
+                                                <select id="style" value={artisticStyle} onChange={e => setArtisticStyle(e.target.value)} className="w-full bg-[var(--color-bg-tertiary)] text-sm p-2 rounded-md border border-[var(--color-border-secondary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-primary)]">
                                                     <option>Default</option>
                                                     <option>Photorealistic</option>
                                                     <option>Minimalist</option>
@@ -911,8 +936,8 @@ const App: React.FC = () => {
                                                 </select>
                                             </div>
                                             <div>
-                                                <label htmlFor="palette" className="text-xs text-slate-400 block mb-1">Color Palette</label>
-                                                <select id="palette" value={colorPalette} onChange={e => setColorPalette(e.target.value)} className="w-full bg-slate-700 text-sm p-2 rounded-md border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                                <label htmlFor="palette" className="text-xs text-[var(--color-text-secondary)] block mb-1">Color Palette</label>
+                                                <select id="palette" value={colorPalette} onChange={e => setColorPalette(e.target.value)} className="w-full bg-[var(--color-bg-tertiary)] text-sm p-2 rounded-md border border-[var(--color-border-secondary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-primary)]">
                                                     <option>Default</option>
                                                     <option>Vibrant</option>
                                                     <option>Monochromatic</option>
@@ -921,8 +946,8 @@ const App: React.FC = () => {
                                                 </select>
                                             </div>
                                               <div>
-                                                <label htmlFor="composition" className="text-xs text-slate-400 block mb-1">Composition</label>
-                                                <select id="composition" value={composition} onChange={e => setComposition(e.target.value)} className="w-full bg-slate-700 text-sm p-2 rounded-md border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                                <label htmlFor="composition" className="text-xs text-[var(--color-text-secondary)] block mb-1">Composition</label>
+                                                <select id="composition" value={composition} onChange={e => setComposition(e.target.value)} className="w-full bg-[var(--color-bg-tertiary)] text-sm p-2 rounded-md border border-[var(--color-border-secondary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-primary)]">
                                                     <option>Default</option>
                                                     <option>Centered</option>
                                                     <option>Rule of thirds</option>
@@ -931,8 +956,8 @@ const App: React.FC = () => {
                                                 </select>
                                             </div>
                                              <div>
-                                                <label htmlFor="mood" className="text-xs text-slate-400 block mb-1">Mood</label>
-                                                <select id="mood" value={mood} onChange={e => setMood(e.target.value)} className="w-full bg-slate-700 text-sm p-2 rounded-md border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                                <label htmlFor="mood" className="text-xs text-[var(--color-text-secondary)] block mb-1">Mood</label>
+                                                <select id="mood" value={mood} onChange={e => setMood(e.target.value)} className="w-full bg-[var(--color-bg-tertiary)] text-sm p-2 rounded-md border border-[var(--color-border-secondary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-primary)]">
                                                     <option>Default</option>
                                                     <option>Optimistic</option>
                                                     <option>Dramatic</option>
@@ -941,8 +966,8 @@ const App: React.FC = () => {
                                                 </select>
                                             </div>
                                             <div className="col-span-2">
-                                                <label htmlFor="aspectRatio" className="text-xs text-slate-400 block mb-1">Aspect Ratio</label>
-                                                <select id="aspectRatio" value={aspectRatio} onChange={e => setAspectRatio(e.target.value)} className="w-full bg-slate-700 text-sm p-2 rounded-md border border-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                                <label htmlFor="aspectRatio" className="text-xs text-[var(--color-text-secondary)] block mb-1">Aspect Ratio</label>
+                                                <select id="aspectRatio" value={aspectRatio} onChange={e => setAspectRatio(e.target.value)} className="w-full bg-[var(--color-bg-tertiary)] text-sm p-2 rounded-md border border-[var(--color-border-secondary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent-primary)]">
                                                     <option>16:9</option>
                                                     <option>1:1</option>
                                                     <option>9:16</option>
@@ -956,15 +981,15 @@ const App: React.FC = () => {
                                     <button
                                         onClick={handleRegenerateImage}
                                         disabled={isRegeneratingImage}
-                                        className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-slate-600 hover:bg-slate-500 text-white disabled:bg-slate-700 disabled:cursor-not-allowed"
+                                        className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-[var(--color-bg-interactive)] hover:bg-[var(--color-bg-tertiary)] text-white disabled:bg-[var(--color-bg-tertiary)] disabled:cursor-not-allowed"
                                     >
                                         {isRegeneratingImage ? <LoadingSpinner /> : <RegenerateIcon />}
                                         Regenerate Image
                                     </button>
                                 </div>
                                 {/* On-demand Content Card */}
-                                <div className="bg-slate-800/50 p-6 rounded-lg shadow-lg border border-slate-700">
-                                    <h3 className="text-lg font-bold text-white mb-4">More Content Ideas</h3>
+                                <div className="bg-[var(--color-bg-secondary)]/50 p-6 rounded-lg shadow-lg border border-[var(--color-border-primary)]">
+                                    <h3 className="text-lg font-bold text-[var(--color-text-primary)] mb-4">More Content Ideas</h3>
                                     <div className="space-y-3">
                                         <OnDemandButton 
                                             isGenerating={isGeneratingPodcast}
@@ -1025,7 +1050,7 @@ const App: React.FC = () => {
             
              <Modal isOpen={!!schedulingPost} onClose={() => setSchedulingPost(null)} title={`Schedule ${schedulingPost === 'linkedin' ? 'LinkedIn' : 'X'} Post`}>
                 <div>
-                    <label htmlFor="schedule-datetime" className="block text-sm font-medium text-slate-300 mb-2">
+                    <label htmlFor="schedule-datetime" className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">
                         Select date and time
                     </label>
                     <input
@@ -1033,15 +1058,15 @@ const App: React.FC = () => {
                         id="schedule-datetime"
                         value={scheduleDateTime}
                         onChange={(e) => setScheduleDateTime(e.target.value)}
-                        className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white"
+                        className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border-secondary)] rounded-md p-2 text-[var(--color-text-primary)]"
                         min={new Date().toISOString().slice(0, 16)}
                     />
                     <div className="mt-6 flex justify-end gap-3">
-                        <button onClick={() => setSchedulingPost(null)} className="py-2 px-4 bg-slate-600 hover:bg-slate-500 rounded-md font-semibold">Cancel</button>
+                        <button onClick={() => setSchedulingPost(null)} className="py-2 px-4 bg-[var(--color-bg-interactive)] hover:bg-[var(--color-bg-tertiary)] rounded-md font-semibold">Cancel</button>
                         <button 
                             onClick={handleSchedulePost}
                             disabled={!scheduleDateTime}
-                            className="py-2 px-4 bg-blue-600 hover:bg-blue-700 rounded-md font-semibold disabled:bg-slate-500 disabled:cursor-not-allowed flex items-center gap-2"
+                            className="py-2 px-4 bg-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary-hover)] rounded-md font-semibold disabled:bg-[var(--color-bg-interactive)] disabled:cursor-not-allowed flex items-center gap-2"
                         >
                              {scheduleSuccess ? <><CheckIcon /> Scheduled!</> : 'Confirm Schedule'}
                         </button>
@@ -1071,39 +1096,39 @@ const EditForm: React.FC<{ contentState: EditingState; onSave: (newContent: any)
             case 'linkedin':
                 return (
                     <>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">Title</label>
-                        <input type="text" value={editedContent.title} onChange={e => handleFieldChange('title', e.target.value)} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 mb-4" />
-                        <label className="block text-sm font-medium text-slate-300 mb-2">Body</label>
+                        <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Title</label>
+                        <input type="text" value={editedContent.title} onChange={e => handleFieldChange('title', e.target.value)} className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border-secondary)] rounded-md p-2 mb-4" />
+                        <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Body</label>
                         <RichTextEditor initialContent={editedContent.body} onContentChange={html => handleFieldChange('body', html)} />
-                        <label className="block text-sm font-medium text-slate-300 mt-4 mb-2">Hashtags (comma-separated)</label>
-                        <input type="text" value={editedContent.hashtags.join(', ')} onChange={e => handleFieldChange('hashtags', e.target.value.split(',').map(s => s.trim()))} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2" />
+                        <label className="block text-sm font-medium text-[var(--color-text-secondary)] mt-4 mb-2">Hashtags (comma-separated)</label>
+                        <input type="text" value={editedContent.hashtags.join(', ')} onChange={e => handleFieldChange('hashtags', e.target.value.split(',').map(s => s.trim()))} className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border-secondary)] rounded-md p-2" />
                     </>
                 );
             case 'x':
                  return (
                     <>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">Body</label>
-                        <textarea value={editedContent.body} onChange={e => handleFieldChange('body', e.target.value)} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 mb-4" rows={6}/>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">Hashtags (comma-separated)</label>
-                        <input type="text" value={editedContent.hashtags.join(', ')} onChange={e => handleFieldChange('hashtags', e.target.value.split(',').map(s => s.trim()))} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2" />
+                        <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Body</label>
+                        <textarea value={editedContent.body} onChange={e => handleFieldChange('body', e.target.value)} className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border-secondary)] rounded-md p-2 mb-4" rows={6}/>
+                        <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Hashtags (comma-separated)</label>
+                        <input type="text" value={editedContent.hashtags.join(', ')} onChange={e => handleFieldChange('hashtags', e.target.value.split(',').map(s => s.trim()))} className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border-secondary)] rounded-md p-2" />
                     </>
                 );
             case 'podcast':
             case 'blog':
                  return (
                     <>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">Title</label>
-                        <input type="text" value={editedContent.title} onChange={e => handleFieldChange('title', e.target.value)} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 mb-4" />
-                        <label className="block text-sm font-medium text-slate-300 mb-2">{contentState.type === 'podcast' ? 'Script' : 'Body'}</label>
+                        <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Title</label>
+                        <input type="text" value={editedContent.title} onChange={e => handleFieldChange('title', e.target.value)} className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border-secondary)] rounded-md p-2 mb-4" />
+                        <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">{contentState.type === 'podcast' ? 'Script' : 'Body'}</label>
                         <RichTextEditor initialContent={contentState.type === 'podcast' ? editedContent.script : editedContent.body} onContentChange={html => handleFieldChange(contentState.type === 'podcast' ? 'script' : 'body', html)} />
                     </>
                 );
             case 'poll':
                 return (
                     <>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">Question</label>
-                        <textarea value={editedContent.question} onChange={e => handleFieldChange('question', e.target.value)} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 mb-4" rows={3}/>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">Options</label>
+                        <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Question</label>
+                        <textarea value={editedContent.question} onChange={e => handleFieldChange('question', e.target.value)} className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border-secondary)] rounded-md p-2 mb-4" rows={3}/>
+                        <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Options</label>
                         {editedContent.options.map((option: string, index: number) => (
                              <input 
                                 key={index} 
@@ -1114,7 +1139,7 @@ const EditForm: React.FC<{ contentState: EditingState; onSave: (newContent: any)
                                     newOptions[index] = e.target.value;
                                     handleFieldChange('options', newOptions);
                                 }} 
-                                className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 mb-2" 
+                                className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border-secondary)] rounded-md p-2 mb-2" 
                             />
                         ))}
                     </>
@@ -1122,15 +1147,15 @@ const EditForm: React.FC<{ contentState: EditingState; onSave: (newContent: any)
             case 'carousel':
                  return (
                      <>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">Main Title</label>
-                        <input type="text" value={editedContent.title} onChange={e => handleFieldChange('title', e.target.value)} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 mb-6" />
+                        <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-2">Main Title</label>
+                        <input type="text" value={editedContent.title} onChange={e => handleFieldChange('title', e.target.value)} className="w-full bg-[var(--color-bg-tertiary)] border border-[var(--color-border-secondary)] rounded-md p-2 mb-6" />
                         {editedContent.slides.map((slide: { title: string, content: string }, index: number) => (
-                            <div key={index} className="bg-slate-700/50 p-4 rounded-lg mb-4 border border-slate-600">
-                                <label className="block text-sm font-bold text-slate-300 mb-2">Slide {index + 1}</label>
-                                <label className="block text-xs font-medium text-slate-400 mb-1">Slide Title</label>
-                                <input type="text" value={slide.title} onChange={e => handleSlideChange(index, 'title', e.target.value)} className="w-full bg-slate-600 border border-slate-500 rounded-md p-2 mb-2" />
-                                <label className="block text-xs font-medium text-slate-400 mb-1">Slide Content</label>
-                                <textarea value={slide.content} onChange={e => handleSlideChange(index, 'content', e.target.value)} className="w-full bg-slate-600 border border-slate-500 rounded-md p-2" rows={3}/>
+                            <div key={index} className="bg-[var(--color-bg-tertiary)]/50 p-4 rounded-lg mb-4 border border-[var(--color-border-secondary)]">
+                                <label className="block text-sm font-bold text-[var(--color-text-secondary)] mb-2">Slide {index + 1}</label>
+                                <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">Slide Title</label>
+                                <input type="text" value={slide.title} onChange={e => handleSlideChange(index, 'title', e.target.value)} className="w-full bg-[var(--color-bg-interactive)] border border-slate-500 rounded-md p-2 mb-2" />
+                                <label className="block text-xs font-medium text-[var(--color-text-secondary)] mb-1">Slide Content</label>
+                                <textarea value={slide.content} onChange={e => handleSlideChange(index, 'content', e.target.value)} className="w-full bg-[var(--color-bg-interactive)] border border-slate-500 rounded-md p-2" rows={3}/>
                             </div>
                         ))}
                     </>
@@ -1144,8 +1169,8 @@ const EditForm: React.FC<{ contentState: EditingState; onSave: (newContent: any)
         <div className="space-y-4">
             {renderFormFields()}
             <div className="mt-6 flex justify-end gap-3">
-                <button onClick={onCancel} className="py-2 px-4 bg-slate-600 hover:bg-slate-500 rounded-md font-semibold">Cancel</button>
-                <button onClick={() => onSave(editedContent)} className="py-2 px-4 bg-blue-600 hover:bg-blue-700 rounded-md font-semibold">Save Changes</button>
+                <button onClick={onCancel} className="py-2 px-4 bg-[var(--color-bg-interactive)] hover:bg-[var(--color-bg-tertiary)] rounded-md font-semibold">Cancel</button>
+                <button onClick={() => onSave(editedContent)} className="py-2 px-4 bg-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary-hover)] rounded-md font-semibold">Save Changes</button>
             </div>
         </div>
     );

@@ -13,27 +13,27 @@ interface SavedPostsModalProps {
 
 const SavedPostsModal: React.FC<SavedPostsModalProps> = ({ isOpen, onClose, savedPosts, onLoad, onDelete }) => {
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Saved Posts">
+        <Modal isOpen={isOpen} onClose={onClose} title="Saved Content">
             <div className="space-y-4">
                 {savedPosts.length > 0 ? (
                     savedPosts.map((post) => (
-                        <div key={post.id} className="bg-slate-700/50 p-4 rounded-lg flex items-center justify-between gap-4">
-                            <div className="flex-grow">
-                                <p className="font-bold text-white truncate" title={post.topic}>{post.topic}</p>
-                                <p className="text-sm text-slate-400">
-                                    Saved on: {new Date(post.savedAt).toLocaleDateString()} at {new Date(post.savedAt).toLocaleTimeString()}
+                        <div key={post.id} className="bg-[var(--color-bg-tertiary)]/50 p-4 rounded-lg flex items-center justify-between gap-4 border border-[var(--color-border-secondary)]">
+                            <div className="flex-grow min-w-0">
+                                <p className="font-bold text-[var(--color-text-primary)] truncate" title={post.topic}>{post.topic}</p>
+                                <p className="text-sm text-[var(--color-text-secondary)]">
+                                    Saved on: {new Date(post.savedAt).toLocaleDateString()}
                                 </p>
                             </div>
                             <div className="flex-shrink-0 flex gap-2">
-                                <button 
+                                <button
                                     onClick={() => onLoad(post)}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-md transition-colors text-sm"
+                                    className="bg-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary-hover)] text-white font-semibold py-2 px-4 rounded-md transition-colors text-sm"
                                 >
                                     Load
                                 </button>
                                 <button 
                                     onClick={() => onDelete(post.id)}
-                                    className="bg-red-600 hover:bg-red-700 text-white p-2 rounded-md transition-colors"
+                                    className="bg-[var(--color-accent-danger)] hover:bg-[var(--color-accent-danger-hover)] text-white p-2 rounded-md transition-colors"
                                     aria-label="Delete saved post"
                                 >
                                     <TrashIcon />
@@ -42,9 +42,9 @@ const SavedPostsModal: React.FC<SavedPostsModalProps> = ({ isOpen, onClose, save
                         </div>
                     ))
                 ) : (
-                    <div className="text-center text-slate-400 py-8">
-                        <p>You have no saved posts yet.</p>
-                        <p className="text-sm mt-2">Generate some content and click "Save This Result" to store it here.</p>
+                    <div className="text-center text-[var(--color-text-secondary)] py-8">
+                        <p>You have no saved content yet.</p>
+                        <p className="text-sm mt-2">Use the "Save This Result" button on generated content to save it for later.</p>
                     </div>
                 )}
             </div>

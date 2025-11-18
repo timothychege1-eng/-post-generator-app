@@ -37,12 +37,12 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
             role="dialog"
         >
             <div 
-                className="bg-slate-800 border border-slate-700 rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]"
+                className="bg-[var(--color-bg-secondary)] border border-[var(--color-border-primary)] rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]"
                 onClick={(e) => e.stopPropagation()} // Prevent closing modal when clicking inside
             >
-                <header className="flex items-center justify-between p-4 border-b border-slate-700 flex-shrink-0">
-                    <h2 className="text-xl font-bold text-white">{title}</h2>
-                    <button onClick={onClose} className="text-slate-400 hover:text-white" aria-label="Close modal">
+                <header className="flex items-center justify-between p-4 border-b border-[var(--color-border-primary)] flex-shrink-0">
+                    <h2 className="text-xl font-bold text-[var(--color-text-primary)]">{title}</h2>
+                    <button onClick={onClose} className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]" aria-label="Close modal">
                         <CloseIcon />
                     </button>
                 </header>
