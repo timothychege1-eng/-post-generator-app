@@ -87,7 +87,7 @@ export const BoldIcon = () => (
 
 export const ItalicIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-        <path d="M7.707 4.293a1 1 0 011.414 0L10 5.586l.879-.879a1 1 0 111.414 1.414L11.414 7l.879.879a1 1 0 01-1.414 1.414L10 8.414l-.879.879a1 1 0 01-1.414-1.414L8.586 7 7.707 5.707a1 1 0 010-1.414zM4 6a2 2 0 114 0 2 2 0 01-4 0zm8 0a2 2 0 114 0 2 2 0 01-4 0zM4 12a2 2 0 114 0 2 2 0 01-4 0zm8 0a2 2 0 114 0 2 2 0 01-4 0z" clipRule="evenodd" transform="skewX(-15)" />
+        <path d="M8.5 3H15.5V5H12.58L9.42 15H12.5V17H5.5V15H8.58L11.74 5H8.5V3Z" />
     </svg>
 );
 
@@ -99,10 +99,10 @@ export const ListUlIcon = () => (
 
 export const ListOlIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zM2.75 9h14.5a.75.75 0 010 1.5H2.75a.75.75 0 010-1.5zM2 14.75a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75z" clipRule="evenodd" />
-        <text x="0" y="7" fontSize="8px" fill="currentColor">1.</text>
-        <text x="0" y="12" fontSize="8px" fill="currentColor">2.</text>
-        <text x="0" y="17" fontSize="8px" fill="currentColor">3.</text>
+        <path d="M6 3a1 1 0 000 2h11a1 1 0 100-2H6zM6 9a1 1 0 000 2h11a1 1 0 100-2H6zM6 15a1 1 0 000 2h11a1 1 0 100-2H6z"/>
+        <path d="M2.32 4.13l.25.39.25-.39A.5.5 0 003 4H2a.5.5 0 00.32.13zM2.87 3H2.13l.37.58.37-.58zM3.5 3a.5.5 0 00-.5-.5h-1a.5.5 0 000 1h1a.5.5 0 00.5-.5z"/>
+        <path d="M3.13 9.42l-.88.75a.5.5 0 000 .86l.88.75a.5.5 0 10.64-.76L3.4 10.5h.1a.5.5 0 100-1h-.1l.37-.31a.5.5 0 10-.64-.76zM4.5 9a.5.5 0 00-.5-.5h-2a.5.5 0 000 1h1v1.5a.5.5 0 001 0V9.5h.5a.5.5 0 00-.5-.5z"/>
+        <path d="M4.5 15a.5.5 0 00-.5-.5h-2a.5.5 0 000 1h1.17a.25.25 0 01.25.25v.04a.25.25 0 01-.25.25H2.5a.5.5 0 100 1h1.5a1.5 1.5 0 001.5-1.5v-.04A1.5 1.5 0 004.5 15z"/>
     </svg>
 );
 

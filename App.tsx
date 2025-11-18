@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo } from 'react';
 import {
     generateCorePosts,
@@ -33,22 +34,17 @@ const CopyButton: React.FC<{ text: string }> = ({ text }) => {
 
     const handleCopy = async () => {
         try {
-            // Use the modern Clipboard API
             await navigator.clipboard.writeText(text);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
             console.warn('Clipboard API failed, falling back to legacy method.', err);
             
-            // Fallback for browsers/environments that don't support the Clipboard API or have permission issues.
             const textArea = document.createElement('textarea');
             textArea.value = text;
-            
-            // Make the textarea invisible
             textArea.style.position = 'fixed';
             textArea.style.top = '-9999px';
             textArea.style.left = '-9999px';
-            
             document.body.appendChild(textArea);
             textArea.focus();
             textArea.select();
@@ -153,13 +149,11 @@ const App: React.FC = () => {
     const [theme, setThemeState] = useState<Theme>('slate');
 
     useEffect(() => {
-        // This effect runs once on mount to set the initial theme from localStorage
         const savedTheme = localStorage.getItem('app-theme') as Theme | null;
         if (savedTheme && ['slate', 'savanna', 'nairobi'].includes(savedTheme)) {
             setThemeState(savedTheme);
             document.documentElement.className = `theme-${savedTheme}`;
         } else {
-            // Set default if nothing is saved or value is invalid
             setThemeState('slate');
             document.documentElement.className = 'theme-slate';
         }
@@ -175,7 +169,6 @@ const App: React.FC = () => {
             console.error("Failed to load data from local storage", error);
         }
         
-        // Cleanup object URLs on unmount
         return () => {
             if (audioUrl) {
                 URL.revokeObjectURL(audioUrl);
@@ -192,15 +185,17 @@ const App: React.FC = () => {
     const hasResults = !!generatedContent;
 
     const formatPostContent = (posts: Partial<GeneratedPosts>) => {
-        const convertToHtml = (text: string | undefined) => {
-            if (!text) return '';
+        const convertToHtml = (text: unknown) => {
+            if (typeof text !== 'string' || !text) {
+                return '';
+            }
             const lines = text.split('\n');
             let html = '';
             let inList = false;
 
             lines.forEach(line => {
                 line = line.trim();
-                if (/^\d+\./.test(line)) { // Matches lines starting with "1.", "2.", etc.
+                if (/^\d+\./.test(line)) {
                     if (!inList) {
                         html += '<ol class="list-decimal list-inside">';
                         inList = true;
@@ -223,16 +218,22 @@ const App: React.FC = () => {
 
             return html;
         };
-        
+
+        const xPostBody = posts.xPost?.body;
+        const blogArticleBody = posts.blogArticle?.body;
+
         return {
             linkedinBodyHtml: convertToHtml(posts.linkedinPost?.body),
-            xBodyHtml: posts.xPost?.body.replace(/\n/g, '<br />'),
-            blogBodyHtml: posts.blogArticle?.body, // Assuming blog body is already formatted
+            xBodyHtml: typeof xPostBody === 'string' ? xPostBody.replace(/\n/g, '<br />') : '',
+            blogBodyHtml: typeof blogArticleBody === 'string' ? blogArticleBody : '',
         };
     };
     
     const { linkedinBodyHtml, xBodyHtml, blogBodyHtml } = useMemo(() => {
-        return formatPostContent(generatedContent?.posts || {});
+        if (!generatedContent || !generatedContent.posts) {
+            return { linkedinBodyHtml: '', xBodyHtml: '', blogBodyHtml: '' };
+        }
+        return formatPostContent(generatedContent.posts);
     }, [generatedContent]);
 
 
@@ -249,7 +250,7 @@ const App: React.FC = () => {
         try {
             const corePosts = await generateCorePosts(useTopic);
             
-            setEditedPrompt(corePosts.imagePrompt); // Set initial prompt for editing
+            setEditedPrompt(corePosts.imagePrompt);
 
             const generatedImages = await generateImages(
                 corePosts.imagePrompt,
@@ -291,7 +292,7 @@ const App: React.FC = () => {
             setGeneratedContent(prev => prev ? ({ ...prev, images: newImages }) : null);
             setSelectedImageIndex(0);
         } catch (err: any) {
-            setError('Failed to regenerate image: ' + err.message);
+            setError(err.message);
         } finally {
             setIsRegeneratingImage(false);
             setIsEditingPrompt(false);
@@ -305,7 +306,6 @@ const App: React.FC = () => {
         setAudioUrl(null);
         try {
             let script: string;
-            // If we already have a script, use it. Otherwise, generate one.
             if(generatedContent?.posts.podcastScript?.script) {
                 script = generatedContent.posts.podcastScript.script;
             } else {
@@ -325,7 +325,7 @@ const App: React.FC = () => {
             setAudioUrl(URL.createObjectURL(audioBlob));
 
         } catch (err: any) {
-            setAudioError("Failed to generate podcast: " + err.message);
+            setAudioError(err.message);
         } finally {
             setIsGeneratingPodcast(false);
             setIsGeneratingAudio(false);
@@ -371,7 +371,7 @@ const App: React.FC = () => {
                 }
             });
         } catch (err: any) {
-             setError(`Failed to generate ${type}: ` + err.message);
+             setError(err.message);
         } finally {
             setLoading(false);
         }
@@ -443,14 +443,11 @@ const App: React.FC = () => {
     const handleLoadSaved = (savedItem: SavedContent) => {
         setActiveTopic(savedItem.topic);
         setGeneratedContent({
-            // Assuming saved items don't have images, or we regenerate them
             posts: savedItem.posts,
             images: [],
         });
         setEditedPrompt(savedItem.posts.imagePrompt);
         setIsSavedPostsModalOpen(false);
-        // We're not regenerating the image on load, but we could add a button for it.
-        // For now, clear any previous image.
     };
 
     const handleSchedulePost = () => {
@@ -502,7 +499,7 @@ const App: React.FC = () => {
             const suggestions = await generateTopicSuggestions(topic);
             setTopicSuggestions(suggestions);
         } catch (err: any) {
-            setError(err.message || "Failed to get topic suggestions.");
+            setError(err.message);
         } finally {
             setIsSuggesting(false);
         }
@@ -522,7 +519,7 @@ const App: React.FC = () => {
             const suggestions = await analyzeYoutubeVideoForTopics(youtubeUrl);
             setYoutubeSuggestions(suggestions);
         } catch (err: any) {
-            setYoutubeError(err.message || "Failed to analyze the video.");
+            setYoutubeError(err.message);
         } finally {
             setIsAnalyzingVideo(false);
         }

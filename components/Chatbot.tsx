@@ -1,7 +1,9 @@
 
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { GoogleGenAI, Chat } from '@google/genai';
+import { Chat } from '@google/genai';
 import { ChatBubbleIcon, CloseIcon, SendIcon, LoadingSpinner } from './icons';
+import { getAiClient } from '../services/geminiService';
 
 interface Message {
     role: 'user' | 'model';
@@ -16,28 +18,44 @@ const Chatbot: React.FC = () => {
         { role: 'model', text: "Hello! I'm your AI assistant for the Kenya Data & AI Society. How can we spark a great conversation today?" }
     ]);
     const chatRef = useRef<Chat | null>(null);
+    const isInitializing = useRef(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (process.env.API_KEY) {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            chatRef.current = ai.chats.create({
-                model: 'gemini-2.5-flash',
-                config: {
-                    systemInstruction: 'You are a friendly and expert AI assistant for the Kenya Data & AI Society. Your role is to help our community members brainstorm content ideas, refine their messaging, and explore topics related to data, AI, leadership, and public speaking within a Kenyan context. Embody our brand voice: welcoming, inspiring, and community-focused. Provide clear, concise, and actionable advice.',
-                },
-            });
-        } else {
-            console.error("API_KEY is not set for the chatbot.");
-             setMessages(prev => [...prev, { role: 'model', text: "I'm currently offline as the API key is not configured." }]);
-        }
-    }, []);
     
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
     useEffect(scrollToBottom, [messages]);
+
+    const initializeChat = useCallback(async () => {
+        if (chatRef.current || isInitializing.current) return;
+
+        isInitializing.current = true;
+        try {
+            const ai = getAiClient();
+            chatRef.current = ai.chats.create({
+                model: 'gemini-2.5-flash',
+                config: {
+                    systemInstruction: 'You are a friendly and expert AI assistant for the Kenya Data & AI Society. Your role is to help our community members brainstorm content ideas, refine their messaging, and explore topics related to data, AI, leadership, and public speaking within a Kenyan context. Embody our brand voice: welcoming, inspiring, and community-focused. Provide clear, concise, and actionable advice.',
+                },
+            });
+        } catch (error: any) {
+            console.error("Failed to initialize chatbot:", error);
+            setMessages(prev => [...prev, { role: 'model', text: `I'm currently offline. ${error.message}` }]);
+        } finally {
+            isInitializing.current = false;
+        }
+    }, []);
+
+    const handleToggleOpen = () => {
+        setIsOpen(prev => {
+            const newIsOpen = !prev;
+            if (newIsOpen && !chatRef.current) {
+                initializeChat();
+            }
+            return newIsOpen;
+        });
+    };
 
     const handleSendMessage = useCallback(async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
@@ -64,9 +82,9 @@ const Chatbot: React.FC = () => {
     return (
         <>
             <button
-                onClick={() => setIsOpen(!isOpen)}
+                onClick={handleToggleOpen}
                 className="fixed bottom-6 right-6 bg-[var(--color-accent-primary)] text-white p-3 rounded-full shadow-lg hover:bg-[var(--color-accent-primary-hover)] transition-transform transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[var(--color-bg-primary)] focus:ring-[var(--color-accent-primary)] z-50"
-                aria-label="Open chat"
+                aria-label={isOpen ? "Close chat" : "Open chat"}
             >
                 {isOpen ? <CloseIcon/> : <ChatBubbleIcon />}
             </button>
@@ -107,7 +125,7 @@ const Chatbot: React.FC = () => {
                                 onChange={(e) => setInput(e.target.value)}
                                 placeholder="Ask me anything..."
                                 className="w-full bg-transparent p-3 text-[var(--color-text-primary)] focus:outline-none"
-                                disabled={isLoading}
+                                disabled={isLoading || !chatRef.current}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' && !e.shiftKey) {
                                         handleSendMessage(e);
