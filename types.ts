@@ -1,3 +1,4 @@
+
 export interface LinkedInPost {
   title: string;
   body: string;
@@ -50,6 +51,7 @@ export interface GeneratedPosts {
   linkedinPost: LinkedInPost;
   xPost: XPost;
   imagePrompt: string;
+  infographic?: string; // Base64 encoded image
   podcastScript?: PodcastScript;
   blogArticle?: BlogArticle;
   linkedinPoll?: LinkedInPoll;

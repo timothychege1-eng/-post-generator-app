@@ -1,5 +1,4 @@
 
-
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import type { GeneratedPosts, PodcastScript, BlogArticle, LinkedInPoll, CarouselPresentation, ResearchReport, TopicSuggestion, YoutubeTopicSuggestion } from '../types';
 
@@ -55,6 +54,8 @@ const handleApiError = (error: any, context: string): Error => {
             message = "Your API key is not valid or has not been set. Please configure your API key to continue.";
         } else if (error.message.includes("Invalid JSON")) {
             message = "The model returned an invalid format. Could not parse the response.";
+        } else if (error.message.includes("PERMISSION_DENIED")) {
+            message = "Permission denied. The API key may not have access to the requested model or project.";
         } else {
             message = error.message;
         }
@@ -110,7 +111,7 @@ export const generateCorePosts = async (topic: string): Promise<GeneratedPosts> 
         `;
 
         const response = await getAiClient().models.generateContent({
-            model: 'gemini-2.5-pro',
+            model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
                 tools: [{ googleSearch: {} }],
@@ -159,6 +160,93 @@ export const generateImages = async (
         return response.generatedImages.map(img => img.image.imageBytes);
     } catch (e) {
         throw handleApiError(e, 'generateImages');
+    }
+};
+
+export const generateInfographic = async (topic: string): Promise<string> => {
+    try {
+        const client = getAiClient();
+
+        // Step 1: Research Agent - Gather accurate, high-impact data AND accessible analogies
+        const researchPrompt = `
+        Role: Lead Science Communicator for the Kenya Data & AI Society.
+        Topic: "${topic}"
+        
+        Task: 
+        1. Identify 3 key technical concepts related to the topic.
+        2. For each concept, provide a *simple, fun analogy* that a non-technical person or a 10-year-old would understand (e.g., "An LLM is like a super-read librarian", "Data cleaning is like sorting laundry").
+        3. Find 2-3 real, accurate statistics or data points relevant to Kenya or Africa to ground the topic.
+        
+        Output: A concise, structured list of the concepts with their analogies and the statistics.
+        `;
+
+        const researchResponse = await client.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: researchPrompt,
+            config: {
+                tools: [{ googleSearch: {} }],
+            }
+        });
+
+        const researchData = researchResponse.text.trim();
+
+        // Step 2: Design Agent - Create the world-class visual specification for a FUN infographic
+        const designPrompt = `
+        Role: World-Class Information Designer & Illustrator.
+        Task: Create a detailed image generation prompt for 'Gemini Flash Image' (Nano Banana) to generate a fun, educational infographic.
+        
+        Topic: "${topic}"
+        
+        Content to Visualize:
+        ${researchData}
+        
+        Design Specifications:
+        - **Format**: Vertical Educational Poster / Infographic (3:4 aspect ratio).
+        - **Style**: "Playful Professional". High-quality 2D/3D hybrid illustration. Think "Kurzgesagt" or "Duolingo" art style meets "Nairobi Tech". Use cute, friendly mascots (like a robot helper or a smart animal) to guide the viewer.
+        - **Visual Strategy**: Use the analogies found in the research explicitly. If the analogy is a "brain", show a cute glowing brain character. If it's "building blocks", show colorful digital blocks.
+        - **Setting**: Subtle, stylized Kenyan elements (savanna horizon line at the bottom, acacia tree silhouette, or modern Nairobi skyline background) to ground it in the region.
+        - **Colors**: Vibrant and engaging. Use Solar Yellow, Tech Blue, and Savanna Green. High contrast for readability.
+        - **Layout**: Clear sections. 
+          1. Catchy Title at the top.
+          2. Central visual metaphor (the main fun illustration).
+          3. 3 distinct data points or fact bubbles surrounding the center with clear icons.
+        - **Text Rendering**: Explicitly instruct the model to render the *Title* and key *Numbers* clearly.
+        
+        Output: Just the raw prompt string for the image generator. No intro/outro.
+        `;
+
+        const designResponse = await client.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: designPrompt,
+        });
+
+        const detailedPrompt = designResponse.text.trim();
+
+        // Step 3: Generation Agent - Create the asset
+        // Using gemini-2.5-flash-image (Nano Banana) to ensure permission access and high quality
+        const imageResponse = await client.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: {
+                parts: [{ text: detailedPrompt }]
+            },
+            config: {
+                imageConfig: {
+                    aspectRatio: '3:4',
+                    // imageSize is not supported in flash-image
+                }
+            }
+        });
+
+        for (const part of imageResponse.candidates?.[0]?.content?.parts || []) {
+            if (part.inlineData && part.inlineData.data) {
+                return part.inlineData.data;
+            }
+        }
+
+        throw new Error("Infographic generation failed to produce an image.");
+
+    } catch (e) {
+        throw handleApiError(e, 'generateInfographic');
     }
 };
 
@@ -250,7 +338,7 @@ export const generatePodcastScript = async (topic: string): Promise<PodcastScrip
         The script should be formatted with paragraphs and clearly marked with "Host:" for our text-to-speech engine.`;
 
         const response = await getAiClient().models.generateContent({
-            model: 'gemini-2.5-pro',
+            model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
                 tools: [{ googleSearch: {} }],
@@ -277,7 +365,7 @@ export const generateBlogArticle = async (topic: string): Promise<BlogArticle> =
         Format the output as a valid JSON object inside a markdown code block: \`\`\`json { "title": "...", "body": "...", "hashtags": ["...", "..."] } \`\`\``;
 
         const response = await getAiClient().models.generateContent({
-            model: 'gemini-2.5-pro',
+            model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
                 tools: [{ googleSearch: {} }],
@@ -329,7 +417,7 @@ export const generateCarousel = async (topic: string): Promise<CarouselPresentat
         Format the output as a valid JSON object inside a markdown code block: \`\`\`json { "title": "...", "slides": [{ "title": "...", "content": "..." }, ...] } \`\`\``;
 
         const response = await getAiClient().models.generateContent({
-            model: 'gemini-2.5-pro',
+            model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
                 tools: [{ googleSearch: {} }],
@@ -354,7 +442,7 @@ export const generateResearchReport = async (topic: string): Promise<ResearchRep
         The report body should be well-formatted using Markdown.`;
 
         const response = await getAiClient().models.generateContent({
-            model: 'gemini-2.5-pro',
+            model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
                 tools: [{ googleSearch: {} }],
@@ -389,7 +477,7 @@ export const generateTopicSuggestions = async (topic: string): Promise<TopicSugg
         `;
         
         const response = await getAiClient().models.generateContent({
-            model: 'gemini-2.5-pro',
+            model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
                 responseMimeType: 'application/json',
@@ -429,7 +517,7 @@ export const analyzeYoutubeVideoForTopics = async (youtubeUrl: string): Promise<
         `;
 
         const response = await getAiClient().models.generateContent({
-            model: 'gemini-2.5-pro',
+            model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
                 responseMimeType: 'application/json',

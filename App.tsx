@@ -1,9 +1,9 @@
 
-
 import React, { useState, useEffect, useMemo } from 'react';
 import {
     generateCorePosts,
     generateImages,
+    generateInfographic,
     generatePodcastAudio,
     generatePodcastScript,
     generateBlogArticle,
@@ -18,7 +18,7 @@ import {
     SparklesIcon, LinkedInIcon, XIcon, ImagePlaceholderIcon, LoadingSpinner,
     CopyIcon, CheckIcon, ResetIcon, RegenerateIcon, EditIcon, SaveIcon, BookOpenIcon, ClockIcon,
     PlusCircleIcon, TrashIcon, MicrophoneIcon, DownloadIcon, DocumentTextIcon, ChartBarIcon, CollectionIcon,
-    VideoCameraIcon,
+    VideoCameraIcon, ChartPieIcon,
 } from './components/icons';
 import Chatbot from './components/Chatbot';
 import Modal from './components/Modal';
@@ -97,6 +97,7 @@ const App: React.FC = () => {
     const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
     const [isRegeneratingImage, setIsRegeneratingImage] = useState(false);
+    const [isGeneratingInfographic, setIsGeneratingInfographic] = useState(false);
     
     // On-demand generation states
     const [isGeneratingPodcast, setIsGeneratingPodcast] = useState(false);
@@ -298,6 +299,28 @@ const App: React.FC = () => {
             setIsEditingPrompt(false);
         }
     };
+
+    const handleGenerateInfographic = async () => {
+        if (!activeTopic) return;
+        setIsGeneratingInfographic(true);
+        try {
+            const imageBase64 = await generateInfographic(activeTopic);
+            setGeneratedContent(prev => {
+                if(!prev) return null;
+                return {
+                    ...prev,
+                    posts: {
+                        ...prev.posts,
+                        infographic: imageBase64
+                    }
+                }
+            })
+        } catch(e: any) {
+            setError(e.message);
+        } finally {
+            setIsGeneratingInfographic(false);
+        }
+    }
 
     const handleGeneratePodcast = async () => {
         if (!activeTopic) return;
@@ -984,6 +1007,47 @@ const App: React.FC = () => {
                                         Regenerate Image
                                     </button>
                                 </div>
+
+                                {/* Infographic Card */}
+                                <div className="bg-[var(--color-bg-secondary)]/50 p-6 rounded-lg shadow-lg border border-[var(--color-border-primary)]">
+                                    <h3 className="text-lg font-bold text-[var(--color-text-primary)] mb-4">Infographic</h3>
+                                    {generatedContent?.posts.infographic ? (
+                                        <>
+                                            <div className="aspect-[3/4] bg-[var(--color-bg-tertiary)]/50 rounded-md flex items-center justify-center overflow-hidden border border-[var(--color-border-secondary)] mb-4">
+                                                <img
+                                                    src={`data:image/jpeg;base64,${generatedContent.posts.infographic}`}
+                                                    alt="Infographic"
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            </div>
+                                             <a 
+                                                href={`data:image/jpeg;base64,${generatedContent.posts.infographic}`} 
+                                                download={`${activeTopic.replace(/\s+/g, '_')}_infographic.jpg`}
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-[var(--color-accent-success)] hover:bg-[var(--color-accent-success-hover)] text-white"
+                                            >
+                                                <DownloadIcon /> Download Infographic
+                                            </a>
+                                        </>
+                                    ) : (
+                                        <div className="text-center">
+                                             <div className="aspect-[3/4] bg-[var(--color-bg-tertiary)]/30 rounded-md flex items-center justify-center mb-4 border border-dashed border-[var(--color-border-secondary)]">
+                                                <div className="text-[var(--color-text-secondary)] flex flex-col items-center">
+                                                    <ChartPieIcon />
+                                                    <span className="text-xs mt-2">No infographic generated</span>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={handleGenerateInfographic}
+                                                disabled={isGeneratingInfographic}
+                                                className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-colors bg-[var(--color-accent-primary)] hover:bg-[var(--color-accent-primary-hover)] text-white disabled:bg-[var(--color-bg-interactive)]"
+                                            >
+                                                {isGeneratingInfographic ? <LoadingSpinner /> : <SparklesIcon />}
+                                                {isGeneratingInfographic ? 'Designing Fun & Educational Infographic...' : 'Generate Infographic'}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
                                 {/* On-demand Content Card */}
                                 <div className="bg-[var(--color-bg-secondary)]/50 p-6 rounded-lg shadow-lg border border-[var(--color-border-primary)]">
                                     <h3 className="text-lg font-bold text-[var(--color-text-primary)] mb-4">More Content Ideas</h3>
